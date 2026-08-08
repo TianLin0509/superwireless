@@ -23,3 +23,6 @@ venv/
 # 系统
 .DS_Store
 Thumbs.db
+
+# playwright-cli 的会话日志（跑浏览器验证时产生）
+.playwright-cli/

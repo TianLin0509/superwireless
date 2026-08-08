@@ -896,7 +896,9 @@ def design_questions_for(profile: TaskProfile, *, limit: int = 3) -> list[Design
 # **一轮 2~4 个问题、按主题分轮、答完再决定要不要下一轮**。
 # 每轮都能直接生成——用户随时可以说「就这样吧」。
 
-_MAX_PER_ROUND = 4
+# 一轮最多问几个。从 4 提到 6 是因为**轮次比单轮长度更让人烦**：
+# 6 个带选项的问题一次看完，比分三轮各 2~4 个来回三次要轻松。
+_MAX_PER_ROUND = 6
 
 
 def next_round(
@@ -908,11 +910,20 @@ def next_round(
 ) -> dict[str, Any]:
     """根据已回答的内容决定这一轮问什么，以及还要不要继续问。
 
-    分轮思路：
-      第 1 轮 —— 实验设计（跟什么比、看什么指标）。这层错了整个结论作废。
-      第 2 轮 —— 高影响参数（信道模型、天线、拓扑这类一改结论就变的）。
-      第 3 轮 —— 次要参数 + 可选的设计问题（推广范围、预期结果）。
+    **目标是 2 轮问完，最多 3 轮。**
+
+      第 1 轮 —— 实验设计（跟什么比、看什么指标）**加上**高影响参数
+                （信道模型、天线、拓扑这类一改结论就变的）。
+      第 2 轮 —— 剩下的次要参数 + 可选的设计问题（推广范围、预期结果）。
       之后 —— 不再主动问，用户想调什么自己说。
+
+    **设计层和参数层没有先后依赖**，早先把它们拆成两轮纯粹是分类整齐，
+    对用户是白白多一次来回：选"跟 Type I 码本比"和选"用 CDL-C 还是
+    CDL-A"互不影响，完全可以一次问完。所以这两类现在合并在第 1 轮，
+    上限 ``_MAX_PER_ROUND``。
+
+    真正**有依赖**的只有一处：样本数依赖试点方差，所以它压根不问用户，
+    由 ``sw_sample_size`` 算（见 CONCLUSION_TEMPLATE 那一节）。
 
     返回的 ``can_generate`` 恒为 True：任何一轮之后都能直接生成，
     没答的走默认值。提问是为了让结论更可靠，不是准入门槛。
@@ -927,19 +938,22 @@ def next_round(
     param_key = [d for d in param_todo if d.priority <= 2]
     param_rest = [d for d in param_todo if d.priority > 2]
 
-    if round_no <= 1 and design_todo:
-        picked_d, picked_p = design_todo[:_MAX_PER_ROUND], []
-        focus = "实验设计"
-        rationale = "先把基线和指标定下来——参数配错重跑就行，实验设计错了整个结论作废。"
-    elif param_key:
-        picked_d, picked_p = [], param_key[:_MAX_PER_ROUND]
-        focus = "关键参数"
-        rationale = "这几个参数一改结论就变，值得单独确认。"
-    elif design_opt_todo or param_rest:
-        picked_d = design_opt_todo[:2]
-        picked_p = param_rest[: max(0, _MAX_PER_ROUND - len(picked_d))]
-        focus = "补充确认"
-        rationale = "剩下这些影响较小，用户没意见就走默认。"
+    if round_no <= 1 and (design_todo or param_key):
+        # 设计层优先占位（它错了整个结论作废），剩余名额给高影响参数。
+        # 两类互不依赖，合在一轮问完。
+        picked_d = design_todo[:_MAX_PER_ROUND]
+        picked_p = param_key[: max(0, _MAX_PER_ROUND - len(picked_d))]
+        focus = "实验设计 + 关键参数"
+        rationale = (
+            "基线和指标错了整个结论作废，这几个参数一改结论就变——"
+            "两类互不依赖，一次问完。"
+        )
+    elif design_todo or param_key or design_opt_todo or param_rest:
+        # 第 2 轮：把所有剩下的一次问完，不再往后拖。
+        picked_d = (design_todo + design_opt_todo)[:_MAX_PER_ROUND]
+        picked_p = (param_key + param_rest)[: max(0, _MAX_PER_ROUND - len(picked_d))]
+        focus = "补齐剩余"
+        rationale = "剩下的一次问完，答不上来的走默认值。"
     else:
         picked_d, picked_p = [], []
         focus = "已问完"
@@ -958,6 +972,14 @@ def next_round(
         "has_more": remaining > 0,
         "remaining_count": max(remaining, 0),
         "can_generate": True,
+        "target_rounds": "2 轮问完，最多 3 轮",
+        # 剩下的问题是不是"全都有合理默认值"。为 True 时 Agent 应当把第 2 轮
+        # 包装成一句可跳过的话（"剩下这些都有默认值，要不要直接跑？"），
+        # 而不是又摆一屏选项——**必答的设计问题一个都不剩才算**。
+        "remaining_all_optional": bool(
+            not [q for q in design_todo if q.key not in {x.key for x in picked_d}]
+            and not [d for d in param_key if d.key not in {x.key for x in picked_p}]
+        ),
         "stop_hint": (
             "用户说「随便 / 默认就行 / 就这样」时立刻停止提问直接生成，"
             "不要再问下一轮。没答的项会用默认值，生成后会如实列出。"

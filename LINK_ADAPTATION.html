@@ -247,8 +247,10 @@ TensorFlow（约 600 MB，且与现有 numpy/scipy/torch 有版本冲突风险�
 <td>38.214 §5.1.3.2，查表分支与量化分支都实现</td></tr>
 <tr><td>码块分段</td><td><span class="tag exact">标准算法</span></td>
 <td>38.212 §5.2.2，BG1/BG2 选择与分段</td></tr>
-<tr><td><strong>BLER</strong></td><td><span class="tag model">模型</span></td>
+<tr><td><strong>BLER（表 1/2）</strong></td><td><span class="tag model">分析模型</span></td>
 <td><strong>有限码长形状 + 可配实现损失。没有 3GPP 参考曲线兜底</strong></td></tr>
+<tr><td><strong>BLER（表 3）</strong></td><td><span class="tag exact">用户曲线</span></td>
+<td>28 档 MCS × NewTx/ReTx，共 56 条、1824 点；不是 3GPP 标准曲线</td></tr>
 </tbody>
 </table>
 </div>
@@ -283,6 +285,27 @@ TensorFlow（约 600 MB，且与现有 numpy/scipy/torch 有版本冲突风险�
 MCS10 是 16QAM R=0.332（SE 1.3281）——同样的 SE，后者码率低得多，所以更省信噪比。</p>
 <p style="margin-top:8px;">所以单调性判据<strong>只能在同一调制阶数内部要求</strong>。
 一开始整体判单调，把这两点误报成了模型失败。</p>
+</div>
+
+<div class="callout c-blue">
+<p><strong>新增表 3：company_20b_256qam。</strong>公司侧提供的 28 档 MCS、
+NewTx/ReTx 两套解调曲线已经作为独立后端接入。以 MCS 15 为例：64QAM，
+NewTx R=0.650 的 10% BLER 门限为 <strong>14.042 dB</strong>，ReTx R=0.333
+为 <strong>7.743 dB</strong>。数据所有者已确认原始标签 Es/No 就是经典 MMSE
+接收机的 SINR；TB/CB、块长、信道模型、MIMO 层数和译码器细节暂不参数化。</p>
+<p style="margin-top:8px;">曲线逐点哈希、56 条覆盖、横轴递增、BLER 单调下降、
+10% 门限覆盖都会自检。范围外保守钳位，不外推假尾部。</p>
+</div>
+
+<div class="callout c-blue">
+<p><strong>TDD AMC 已接通。</strong>输入 CQI 后，先按谱效映射公司表初始 MCS，
+再取该 MCS 的 NewTx 目标 BLER SINR 门限。BF Gain 逐 RB、逐流定义为同一信道、
+CSI、rank、功率、干扰和经典 MMSE 接收机下
+<code>SINR_SVD - SINR_PMI</code>；叠加后对全部 RB×流在 dB 域做算术平均，
+重新映射 MCS，最后在 MCS 域加 OLLA、严格 <code>floor</code> 并钳位到 0..27。</p>
+<p style="margin-top:8px;"><code>CQI=0</code> 不调度。默认 10% 目标下 ACK +0.1、
+NACK -0.9 MCS，反馈只改变下一时刻 OLLA。接口返回初始门限、逐流 PMI/SVD SINR、
+BF Gain、用户 SINR、取整前后 MCS 和最终 BLER，不隐藏中间口径。</p>
 </div>
 
 <h2 id="s4">四、实测：吞吐、边缘用户、MCS 分布</h2>
@@ -397,7 +420,7 @@ REPL 和 <code>python -c</code> 里没有）。这时<strong>降级串行并把�
 
 <h2 id="s7">七、新增接口</h2>
 
-<h3>3 个 MCP 工具（总数 20 → 23）</h3>
+<h3>5 个 BLER / 吞吐 / TDD AMC MCP 工具（当前总数 30）</h3>
 <div class="tbl-wrap">
 <table>
 <thead><tr><th>工具</th><th>作用</th></tr></thead>
@@ -407,7 +430,11 @@ REPL 和 <code>python -c</code> 里没有）。这时<strong>降级串行并把�
 <tr><td><code>sw_sweep_snr</code></td>
 <td>谱效/吞吐 vs SNR 曲线，各点配对无抽样噪声</td></tr>
 <tr><td><code>sw_mcs_info</code></td>
-<td>38.214 MCS/CQI 表 + 表格自检 + BLER 模型门限锚点</td></tr>
+<td>表 1/2：38.214 + 分析模型；表 3：用户 MCS + NewTx/ReTx 门限</td></tr>
+<tr><td><code>sw_bler_curve</code></td>
+<td>查单档原始 BLER 曲线、目标门限，并在任意 SINR 点做对数域插值</td></tr>
+<tr><td><code>sw_tdd_mcs</code></td>
+<td>CQI → PMI/SVD BF Gain → MCS → OLLA，返回逐 RB、逐流的完整审计链</td></tr>
 </tbody>
 </table>
 </div>
@@ -421,11 +448,17 @@ code_blocks(tbs, rate)            <span class="cm"># 38.212 §5.2.2 分段</span
 select_mcs / select_cqi           <span class="cm"># 链路自适应</span>
 link_adaptation(...)              <span class="cm"># 端到端：SINR → 吞吐</span>
 throughput_stats(...)             <span class="cm"># 分布 + 边缘用户</span>
-BlerModel.anchor_check()          <span class="cm"># 门限摆出来供人工对照</span></code></pre>
+BlerModel.anchor_check()          <span class="cm"># 分析模型门限</span>
+bler_curve(mcs, tx_mode)          <span class="cm"># 用户原始曲线与插值</span></code></pre>
+<pre><code>tdd_mcs_adaptation(...)            <span class="cm"># TDD CQI/BF Gain/OLLA 核心决策</span></code></pre>
+<p class="q"><code>bler_data_20b.py</code> 保存不可变原始点；
+<code>bler_curves.py</code> 负责哈希、完整性检查、插值和范围钳位。</p>
 
 <h3>Dataset 上的新方法</h3>
 <pre><code>ds.link_adaptation(i, mcs_table=1)   <span class="cm"># 单样本：MCS/CQI/TBS/BLER/吞吐</span>
-ds.throughput(max_samples=200)       <span class="cm"># 整批：分布 + 5% 边缘用户</span></code></pre>
+ds.throughput(max_samples=200)       <span class="cm"># 整批：分布 + 5% 边缘用户</span>
+ds.throughput(mcs_table=3)           <span class="cm"># 用户 NewTx/ReTx 曲线后端</span></code></pre>
+<pre><code>ds.tdd_mcs(i, cqi_index=9, olla_mcs_offset=-0.2) <span class="cm"># 单样本 TDD 最终 MCS</span></code></pre>
 
 <h2 id="s8">八、已知局限</h2>
 
@@ -433,15 +466,15 @@ ds.throughput(max_samples=200)       <span class="cm"># 整批：分布 + 5% 边
 <table>
 <thead><tr><th>局限</th><th>为什么</th><th>怎么应对</th></tr></thead>
 <tbody>
-<tr><td><strong>BLER 是模型不是实测</strong></td>
-<td>没有 3GPP 参考曲线；跑真 LDPC 要引入 TensorFlow 栈</td>
-<td><code>anchor_check</code> 把门限摆出来对照公开曲线；严格结论跑 Sionna PHY / MATLAB</td></tr>
+<tr><td><strong>BLER 证据依赖后端</strong></td>
+<td>表 1/2 是分析模型；表 3 是经典 MMSE 接收机的用户 SINR 曲线，其他维度暂不参数化</td>
+<td>结果保留 <code>bler_source</code>、接收机与横轴口径；不额外推断块长等影响</td></tr>
 <tr><td>EESM 的 β 未逐 MCS 标定</td>
 <td>β 要拿自己的链路级曲线标定</td>
 <td>默认走 MIESM（不需要 β）；用 EESM 请自行标定后覆盖</td></tr>
-<tr><td>HARQ 是简化模型</td>
-<td>用的是"每次重传独立、成功即停"，没有合并增益</td>
-<td>模型<strong>偏保守</strong>，真实 HARQ 吞吐会更高</td></tr>
+<tr><td>HARQ 仍有简化</td>
+<td>表 1/2 假设每次同 BLER；表 3 首传用 NewTx、后续复用唯一一条 ReTx 曲线</td>
+<td>返回 <code>harq_model</code>，不把多次 ReTx 复用藏起来</td></tr>
 <tr><td>没有 L2 调度器</td>
 <td>多用户调度、MU-MIMO 配对、业务模型都不在范围内</td>
 <td>当前是单用户链路视角；多用户要另建一层</td></tr>

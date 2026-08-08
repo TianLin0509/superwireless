@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>superwireless 通宵进展与待审问题</title>
+<style>
+  :root{
+    --bg:#fafafa; --card:#fff; --ink:#1d1d1f; --ink-soft:#6e6e73;
+    --border:#d2d2d7; --accent:#0071e3;
+    --success:#34c759; --warning:#ff9f0a; --danger:#ff3b30;
+    --code-bg:#1d1d1f; --code-ink:#f5f5f7;
+    --tint-blue:#eef5fd; --tint-blue-ink:#0055b3;
+    --tint-green:#eef9f0; --tint-green-ink:#1a7a34;
+    --tint-amber:#fdf5e8; --tint-amber-ink:#8a5a00;
+    --tint-red:#fdeeed; --tint-red-ink:#a32620;
+    --tint-grey:#f2f2f4; --tint-grey-ink:#4a4a4e;
+    --tint-purple:#f3f0fb; --tint-purple-ink:#5a3ec8;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#1d1d1f; --card:#2c2c2e; --ink:#f5f5f7; --ink-soft:#aeaeb2;
+      --border:#38383a; --accent:#0a84ff;
+      --success:#30d158; --warning:#ffd60a; --danger:#ff453a;
+      --tint-blue:#12263c; --tint-blue-ink:#8ec2ff;
+      --tint-green:#14301c; --tint-green-ink:#7ee096;
+      --tint-amber:#33280c; --tint-amber-ink:#ffd77a;
+      --tint-red:#3a1a18; --tint-red-ink:#ff9a92;
+      --tint-grey:#333336; --tint-grey-ink:#c8c8cc;
+      --tint-purple:#241d3d; --tint-purple-ink:#b9a6f5;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; padding:40px 20px; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    font-size:15px; line-height:1.75; overflow-x:hidden;}
+  .wrap{max-width:1140px; margin:0 auto;}
+  h1{font-size:34px; font-weight:700; letter-spacing:-0.03em; margin:0 0 10px;}
+  .tagline{font-size:17px; color:var(--ink-soft); margin:0 0 8px;}
+  .meta{color:var(--ink-soft); font-size:13px; margin:0 0 28px; font-family:"SF Mono",Consolas,monospace;}
+  h2{font-size:24px; font-weight:700; letter-spacing:-0.02em; margin:54px 0 8px; padding-top:22px; border-top:1px solid var(--border);}
+  h3{font-size:18px; font-weight:600; margin:32px 0 8px;}
+  h4{font-size:15px; font-weight:600; margin:22px 0 6px;}
+  p{margin:10px 0;}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:24px; margin:20px 0;}
+  .lead{font-size:16px; color:var(--ink-soft); margin:0 0 18px;}
+
+  .toc{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px 24px; margin:24px 0 34px;}
+  .toc ol{margin:6px 0; padding-left:22px; columns:2; column-gap:32px;}
+  .toc li{margin:4px 0; break-inside:avoid;}
+  .toc a{color:var(--accent); text-decoration:none;}
+  .toc a:hover{text-decoration:underline;}
+
+  .callout{border-radius:10px; padding:16px 20px; margin:18px 0; border-left:3px solid;}
+  .callout p:first-child{margin-top:0;} .callout p:last-child{margin-bottom:0;}
+  .c-blue{background:var(--tint-blue); color:var(--tint-blue-ink); border-left-color:var(--accent);}
+  .c-green{background:var(--tint-green); color:var(--tint-green-ink); border-left-color:var(--success);}
+  .c-amber{background:var(--tint-amber); color:var(--tint-amber-ink); border-left-color:var(--warning);}
+  .c-red{background:var(--tint-red); color:var(--tint-red-ink); border-left-color:var(--danger);}
+  .c-purple{background:var(--tint-purple); color:var(--tint-purple-ink); border-left-color:#5a3ec8;}
+
+  .plain{background:var(--tint-grey); color:var(--tint-grey-ink); border-radius:10px; padding:14px 18px; margin:14px 0; font-size:14.5px;}
+  .plain::before{content:"白话讲　"; font-weight:600;}
+  .plain p{margin:8px 0;} .plain p:first-of-type{display:inline;}
+
+  .tbl-wrap{overflow-x:auto; margin:16px 0; border:1px solid var(--border); border-radius:10px;}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; background:var(--card);}
+  th,td{padding:9px 13px; text-align:left; border-bottom:1px solid var(--border); vertical-align:top;}
+  th{background:var(--tint-grey); color:var(--tint-grey-ink); font-weight:600; white-space:nowrap; font-size:13px;}
+  tr:last-child td{border-bottom:none;}
+  code{font-family:"SF Mono",Consolas,Monaco,monospace; background:var(--tint-grey); color:var(--tint-grey-ink);
+       padding:1px 5px; border-radius:4px; font-size:12.5px;}
+  td code,th code{font-size:12px;}
+  .nowrap{white-space:nowrap;}
+  pre{background:var(--code-bg); color:var(--code-ink); padding:16px 20px; border-radius:10px; overflow-x:auto;
+      font-family:"SF Mono",Consolas,Monaco,monospace; font-size:12.5px; line-height:1.62; margin:14px 0;}
+  pre code{background:none; color:inherit; padding:0; font-size:inherit;}
+  .cm{color:#8e8e93;}
+
+  ul,ol{margin:10px 0; padding-left:24px;} li{margin:5px 0;}
+
+  .pill{display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; white-space:nowrap;}
+  .p-ok{background:var(--tint-green); color:var(--tint-green-ink);}
+  .p-no{background:var(--tint-red); color:var(--tint-red-ink);}
+  .p-mid{background:var(--tint-amber); color:var(--tint-amber-ink);}
+  .p-info{background:var(--tint-blue); color:var(--tint-blue-ink);}
+  .p-out{background:var(--tint-grey); color:var(--tint-grey-ink);}
+  .p-purple{background:var(--tint-purple); color:var(--tint-purple-ink);}
+
+  .grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; margin:18px 0;}
+  .mini{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:18px;}
+  .mini h4{margin:0 0 8px; font-size:15px;}
+  .mini p{margin:6px 0; font-size:14px; color:var(--ink-soft);}
+
+  .src{font-family:"SF Mono",Consolas,monospace; font-size:12px; color:var(--ink-soft);}
+  footer{margin-top:64px; padding-top:24px; border-top:1px solid var(--border); color:var(--ink-soft); font-size:13px;}
+
+  /* --- 本页专用 --- */
+  .rank{display:grid; grid-template-columns:44px 1fr; gap:0 16px; margin:16px 0;}
+  .rank .no{font:700 26px "SF Mono",Consolas,monospace; color:var(--accent); line-height:1.3;}
+  .rank .bd{border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:16px;}
+  .rank .bd:last-child{border-bottom:none;}
+  .rank h4{margin:0 0 4px; font-size:16.5px;}
+  .rank .tags{display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 8px;}
+  .rank p{margin:6px 0; font-size:14.5px;}
+
+  .stack{margin:20px 0; border:1px solid var(--border); border-radius:12px; overflow:hidden;}
+  .layer{display:grid; grid-template-columns:170px 1fr 96px; gap:14px; align-items:start;
+         padding:11px 16px; border-bottom:1px solid var(--border); font-size:13.5px;}
+  .layer:last-child{border-bottom:none;}
+  .layer .nm{font-weight:600;}
+  .layer .ds{color:var(--ink-soft);}
+  .layer.have{background:var(--tint-green);} .layer.have .nm{color:var(--tint-green-ink);}
+  .layer.part{background:var(--tint-amber);} .layer.part .nm{color:var(--tint-amber-ink);}
+  .layer.gap{background:var(--tint-red);}   .layer.gap .nm{color:var(--tint-red-ink);}
+  .layer.out{background:var(--tint-grey);}  .layer.out .nm{color:var(--tint-grey-ink);}
+  .layer .st{text-align:right;}
+  @media (max-width:640px){ .layer{grid-template-columns:1fr; gap:2px;} .layer .st{text-align:left;} }
+
+  .legend{display:flex; gap:14px; flex-wrap:wrap; margin:10px 0 0; font-size:13px; color:var(--ink-soft);}
+</style>
+<style>
+  .step{display:grid; grid-template-columns:46px 1fr; gap:0 16px; margin:18px 0;}
+  .step .no{font:700 22px "SF Mono",Consolas,monospace; color:var(--accent); line-height:1.5;}
+  .step .bd{border-left:2px solid var(--border); padding:0 0 20px 18px; margin-left:-9px;}
+  .step h3{margin:0 0 6px; font-size:17px;}
+  .fml{background:var(--tint-grey); color:var(--tint-grey-ink); border-radius:8px;
+       padding:12px 16px; margin:10px 0; font-family:"SF Mono",Consolas,monospace;
+       font-size:13px; overflow-x:auto; white-space:pre;}
+  .ask{background:var(--tint-purple); color:var(--tint-purple-ink); border-radius:10px;
+       padding:14px 18px; margin:14px 0; border-left:3px solid #5a3ec8;}
+  .ask p:first-of-type{display:inline;}
+  .ask p{margin:8px 0;}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+<h1>通宵进展与待审问题</h1>
+<p class="tagline">七项目标的完成情况 · 3GPP 对标结果 · 需要你逐一拍板的 12 个问题</p>
+<p class="meta">2026-08-02 凌晨 · 十个测试套件 904 项全通过 · 所有数字来自实跑</p>
+
+<div class="callout c-red">
+<p><b>先看这一条。</b> 对标做完并修掉一个 API bug 之后，<b>大部分指标已经对上了</b>：
+峰值谱效 −1.2%、峰值速率 −1.8%、城区宏站小区谱效 +1%、平均 rank −2%、
+5% 用户谱效 −7%。</p>
+<p><b>只剩一个真实的偏差：密集城区的 rank 只有 1.68，现网是 2.7</b>，
+而且它比城区宏站（2.64）还低——方向和现网相反。这一条我定位不了，
+需要你提供分场景的现网 rank 数据。见问题 2。</p>
+<p class="src">写这份文档时那张表还是错的（5% 用户谱效 0.040、差 85%）。
+排查问题 1 的过程中发现根因是<b>把样本数当成了用户数</b>——
+40 个样本分布在 10 个 UE 位置上，我却塞进了 40 个用户，
+每用户谱效被摊薄 4 倍。已修，表里是修复后的数。</p>
+</div>
+
+<h2 id="s1">一、七项目标的完成情况</h2>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th style="min-width:190px">目标</th><th>状态</th><th>要点</th></tr></thead>
+<tbody>
+<tr><td><b>1 全面实现仿真配置</b></td><td><span class="pill p-ok">完成</span></td>
+<td>单码字谱效、rank 自适应、SU/MU 自适应、EZF 配对、功率按流均分（rank2 拿 2 份）全部按你 08-02 给的口径实现</td></tr>
+<tr><td><b>2 HTML 算法页签</b></td><td><span class="pill p-ok">完成</span></td>
+<td>13 条算法逐一可展开，每条都写了公式、为什么这么选、<b>什么时候会失真</b></td></tr>
+<tr><td><b>3 3GPP 学习与遗漏排查</b></td><td><span class="pill p-mid">部分</span></td>
+<td>12 个问题列在第三节。已自我修正 4 处，其余需要你拍板</td></tr>
+<tr><td><b>4 经典场景对标</b></td><td><span class="pill p-ok">完成</span></td>
+<td>见第二节。峰值项吻合，均值/边缘项偏低</td></tr>
+<tr><td><b>5 小区级 + 用户级</b></td><td><span class="pill p-ok">完成</span></td>
+<td>两级 KPI 都有：体验速率（中位/5%）、平均 MCS、平均 rank、首传/残留 BLER、占用率</td></tr>
+<tr><td><b>6 系统仿真（体验速率）</b></td><td><span class="pill p-ok">完成</span></td>
+<td>FTP3 话务 + PF 调度 + HARQ + 掐头去尾三档口径。<b>100000 TTI 跑 0.38 秒</b></td></tr>
+<tr><td><b>7 性能优化</b></td><td><span class="pill p-ok">完成</span></td>
+<td>两相架构：SVD 只在建表时做一次，主循环纯查表。见第四节</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="callout c-amber">
+<p><b>一处定位反转要你确认。</b> 我之前按你的话把「调度器」写进了 ROADMAP 的
+"明确不补的"。这次第 6 项要求做 PF 调度，我按新指令做了，
+<b>但还没去改那份 ROADMAP</b>——因为这等于把项目边界从"纯链路仿真"
+扩到"链路 + 系统级"。<b>确认后我再改文档。</b></p>
+</div>
+
+
+<h2 id="s2">二、3GPP / ITU 对标结果</h2>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th style="min-width:150px">指标</th><th>实测</th><th>参考值</th><th>偏差</th><th>出处</th></tr></thead>
+<tbody>
+<tr><td><b>峰值谱效</b></td><td>29.63 bit/s/Hz</td><td>30.0</td>
+<td><span class="pill p-ok">−1.2%</span></td><td>ITU-R M.2412 IMT-2020 DL 峰值</td></tr>
+<tr><td><b>峰值速率</b></td><td>2.295 Gbps</td><td>2.337</td>
+<td><span class="pill p-ok">−1.8%</span></td><td>38.306 §4.1.2 峰值速率公式</td></tr>
+<tr><td><b>用户体验速率</b><br><span class="src">密集城区 @57% 占用</span></td><td>177.7 Mbps<br><span class="src">5% 边缘 84.6</span></td><td>100 Mbps</td>
+<td><span class="pill p-ok">+78%</span></td><td>ITU-R M.2412 Dense Urban eMBB DL</td></tr>
+<tr><td><b>小区谱效</b><br><span class="src">城区宏站 full buffer<br>按 TDD 下行占比归一</span></td><td>5.85 → <b>7.9</b> bit/s/Hz</td><td>7.8</td>
+<td><span class="pill p-ok">+1%</span></td><td>ITU-R M.2412 Dense Urban DL 平均</td></tr>
+<tr><td><b>小区谱效</b><br><span class="src">密集城区 full buffer<br>按 TDD 归一</span></td><td>3.10 → 4.2 bit/s/Hz</td><td>7.8</td>
+<td><span class="pill p-no">−46%</span></td><td>同上</td></tr>
+<tr><td><b>5% 用户谱效</b><br><span class="src">按 TDD 归一</span></td><td>0.194~0.212 → 0.26~0.29</td><td>0.3</td>
+<td><span class="pill p-mid">−7%</span></td><td>ITU-R M.2412 Dense Urban DL</td></tr>
+<tr><td><b>平均 rank</b><br><span class="src">城区宏站</span></td><td><b>2.64</b></td><td>2.7</td>
+<td><span class="pill p-ok">−2%</span></td><td>你给的现网话统</td></tr>
+<tr><td><b>平均 rank</b><br><span class="src">密集城区</span></td><td>1.68</td><td>2.7</td>
+<td><span class="pill p-no">−38%</span></td><td>同上</td></tr>
+<tr><td><b>平均 MCS</b></td><td>12.1~13.7</td><td>15</td>
+<td><span class="pill p-mid">−19%</span></td><td>同上</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>各场景的链路侧画像（实跑）</h3>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>场景</th><th>几何 SINR 中位</th><th>平均 rank</th><th>平均 MCS</th><th>链路 SE</th><th>5% SE</th></tr></thead>
+<tbody>
+<tr><td>密集城区 UMi 200 m</td><td>15.4 dB</td><td>1.66</td><td>12.4</td><td>5.07</td><td>2.57</td></tr>
+<tr><td>城区宏站 UMa 500 m</td><td>18.2 dB</td><td>2.44</td><td>12.0</td><td>7.99</td><td>2.93</td></tr>
+<tr><td>农村 1732 m</td><td>7.9 dB</td><td>2.38</td><td>7.6</td><td>4.74</td><td>1.60</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="plain">
+<p><b>密集城区的 rank 比城区宏站还低（1.66 vs 2.44），这反直觉。</b>
+密集城区 ISD 更小、SINR 更低（15.4 vs 18.2 dB），功率分到多流后每流 SINR 掉得更狠，
+rank 自适应于是退到低秩。<b>但现网密集城区的 rank 恰恰更高</b>——
+因为密集城区多径丰富、信道秩本来就高。这说明信道模型的空间相关性可能偏强。
+见问题 2。</p>
+</div>
+
+
+<h2 id="s3">三、要你逐一审视的 12 个问题</h2>
+
+<p class="lead">按重要性排。<b>1~4 是会改变所有结论的口径问题</b>，5~9 是实现选择，
+10~12 是能力边界。</p>
+
+<div class="card">
+<div class="rank">
+
+<div class="no">1</div><div class="bd">
+<h4><span class="pill p-ok">已自查并修复</span> 5% 用户谱效曾经差一个数量级</h4>
+<p>原本 0.040 vs ITU 的 0.3。我的第一个怀疑（覆盖外用户拉低了分位数）
+<b>查下来是错的</b>——实测 outage 全是 0%，没人被饿死。</p>
+<p>真因是 <code>sw_system_sim</code> 的 API bug：<b>把样本数当成了用户数</b>。
+数据集里 40 个样本分布在 10 个 UE 位置上（同一 UE 的多个样本是时间相关的，
+多普勒就是从相邻样本算的），我却把每个样本当成一个独立用户，
+小区里凭空多出 4 倍的人。修复后 5% 用户谱效 0.040 → <b>0.194</b>，
+按 TDD 归一是 0.26，落在 ITU 的 0.3 附近。</p>
+<p><b>仍要你定的</b>：覆盖外用户（SINR 够不到 MCS 0 门限）在你们话统里
+是记 0 还是整个不计入？这会改变 5% 边缘的数字。</p>
+</div>
+
+<div class="no">2</div><div class="bd">
+<h4>密集城区 rank 1.68，现网是 2.7（城区宏站已对上：2.64）</h4>
+<p>而且密集城区比城区宏站还低，方向和现网相反。三种可能，我分不出是哪个：</p>
+<ul>
+<li><b>信道空间相关性偏强</b>——ChannelHub 的 CDL 剖面在 64T4R 下奇异值衰减太快</li>
+<li><b>噪声口径仍有残差</b>——锚定 rank1 已经把偏差从 12 dB 降到接近 0，但 rank 仍偏低</li>
+<li><b>现网的 2.7 包含 MU 用户</b>——MU 硬顶 rank2，若混合统计，SU 侧应该更高</li>
+</ul>
+<p><b>修完用户数的 bug 后，城区宏站的 rank 是 2.64，和现网的 2.7 只差 2%。
+所以问题只出在密集城区。</b> 这反而更奇怪：密集城区 SINR 更低（15.4 vs 18.2 dB），
+功率分到多流后每流掉得更狠，rank 自适应于是退到低秩；
+而现网密集城区的 rank 恰恰更高，因为多径丰富、信道秩本来就高。</p>
+<p><b>要你定</b>：<b>现网的密集城区和城区宏站各自的平均 rank 是多少？</b>
+只有一个总均值 2.7 的话我没法判断是信道模型的空间相关性偏强，还是场景配置不对。
+另外那个 2.7 是只统计 SU 用户还是 SU+MU 混合？</p>
+</div>
+
+<div class="no">3</div><div class="bd">
+<h4>小区谱效：城区宏站已对上，密集城区仍差 46%</h4>
+<p>按 TDD 下行占比 74% 归一后，<b>城区宏站 7.9 vs ITU 7.8，几乎正中</b>；
+密集城区 4.2 vs 7.8 仍差 46%——和问题 2 是同一个根因（rank 偏低）。</p>
+<p><b>我原本猜"开了 MU 就能补上这 46%"，实测下来这条不成立。</b>
+把真实的 SU/MU 自适应接进系统仿真后测得 <b>MU/SU 小区谱效比 &lt; 1</b>
+（密集城区 0.755、城区宏站 0.917），自适应因此全程选 SU、MU 占比 0%。
+这和你描述的机理一致：SU 无干扰且能到 rank4，MU 被限在 rank2 且每人只分 1/K 功率，
+在 10 个用户 / 64 端口这种自由度富余的工况下 SU 本来就该赢。</p>
+<p><b>所以城区宏站的 7.90 是不靠 MU 就达到的</b>，密集城区那 46% 的缺口
+只能归到 rank 上（问题 2）。</p>
+<p><b>要你确认</b>：ITU 那个 7.8 的对标要不要按"归一到全下行"做？
+我现在是这么做的（除以 TDD 下行占比 0.74）。另外 ITU 的评估工况是
+10 UE/TRxP 还是更多？用户数直接决定 MU 有没有用武之地。</p>
+</div>
+
+<div class="no">4</div><div class="bd">
+<h4>RBG 内部的 16 个 RB 该怎么聚合</h4>
+<p>你说的是"RBG 上的 SINR 的 dB 域平均"给出用户级 SINR，我理解那指
+<b>RBG 之间</b>。RBG <b>内部</b>那 16 个 RB 我用的是<b>线性域平均</b>
+（同一调度单位、功率域相加）。</p>
+<p><b>要你定</b>：RBG 内部也该用 dB 域吗？改了会让结果再低一点——
+正好是往现网锚点的反方向走，所以这条要先定下来再谈校准。</p>
+</div>
+
+<div class="no">5</div><div class="bd">
+<h4>目标 BLER 是 10% 吗</h4>
+<p>我用的是表 3（公司 20B NewTx 曲线）+ 10% 首传 BLER。
+如果现场目标是 1%，MCS 会整体低 2~3 档，<b>偏差会更大而不是更小</b>。</p>
+</div>
+
+<div class="no">6</div><div class="bd">
+<h4>体验速率的掐头去尾，你们话统到底掐哪个</h4>
+<p>实现了三档：<code>none</code> / <code>tail</code>（3GPP TS 28.552 §5.1.1.3，
+只掐清空缓冲区的最后一个 slice）/ <code>head_tail</code>（再掐首个 TTI）。
+默认走 <code>tail</code>。</p>
+<p><b>要你定</b>：你们的"掐头"掐的是<b>首个被调度的 TTI</b>，
+还是<b>从数据到达到首次被调度这段等待时间</b>？两者差别在轻载时很大。</p>
+</div>
+
+<div class="no">7</div><div class="bd">
+<h4>MU 的 rank 现在固定 2，要不要也做自适应</h4>
+<p>按你说的"先默认都是 2"实现了。但 SU 侧是 1~4 自适应的，
+MU 侧固定 2 意味着<b>信道差的用户在 MU 下反而被强制开 2 流</b>，
+可能不如 rank1。要不要让 MU 也在 1~2 之间选？</p>
+</div>
+
+<div class="no">8</div><div class="bd">
+<h4>邻区干扰还没进 MU 的 SINR 分母</h4>
+<p>MU 现在只算小区内的用户间干扰。接上 <code>interference_covariance</code>
+就能补，和已做的 IRC 是同一套。<b>补了 MU 增益会明显下降但更真实。</b></p>
+</div>
+
+<div class="no">9</div><div class="bd">
+<h4>PF 的时间窗 Tc = 100 TTI 是我拍的</h4>
+<p>它决定公平的时间尺度：太小接近 max-C/I，太大接近轮询。
+<b>你们现场用多少？</b> 这个值会直接改变 5% 边缘用户的数字。</p>
+</div>
+
+<div class="no">10</div><div class="bd">
+<h4>HARQ 只有曲线复用，没有真软合并</h4>
+<p>首传查 NewTx 曲线、重传查 ReTx 曲线，多次重传复用同一条。
+真软合并（Chase/IR）需要 LLR，而比特级链路你已明确不做。
+<b>这是个已知的天花板</b>，重传增益会被低估。</p>
+</div>
+
+<div class="no">11</div><div class="bd">
+<h4>信道快照与 TTI 的对应关系是我定的</h4>
+<p>ChannelHub 一次给 <code>num_slots_per_sample</code> 个时间相关的快照，
+我按 <code>snapshot_update_ms=10</code> 把它们循环映射到 TTI 上。
+<b>这不是真正的连续信道演进</b>——10 ms 换一次快照、快照用完从头循环。</p>
+<p>后果：PF 拿到的多用户分集增益<b>可能偏乐观也可能偏保守</b>，取决于
+快照数与相关性。快照少于 4 个时会主动告警。
+<b>要做得更真需要连续信道演进（空间一致性），那是另一件事。</b></p>
+</div>
+
+<div class="no">12</div><div class="bd">
+<h4>还没做的能力（按现在的边界）</h4>
+<ul>
+<li><b>CSI Type II 码本</b>——MU 的前提，Type I 的量化误差在 MU 下损失同量级</li>
+<li><b>导频图案配置</b>（DMRS/CSI-RS 时频位置）——要先把粒度从 RB 下沉到 RE</li>
+<li><b>MU + 系统级联动</b>——已接上 <code>measure_mu_gain</code>：在若干快照上
+用真实的 SU/MU 自适应配一遍，取 MU/SU 小区谱效比的中位数，主循环按它折算。
+<b>仍是标量近似</b>（逐 TTI 真配对要在每个 TTI 做 SVD + 矩阵求逆，十万 TTI 跑不完），
+但返回值里带逐快照比值与离散度——实测离散度 3.7%~13.1%，
+说明这个近似在当前工况下站得住。超过 30% 就不该用标量了。</li>
+<li><b>多小区联合调度</b>——现在每个小区独立调度，没有 CoMP / 干扰协调</li>
+</ul>
+</div>
+
+</div>
+</div>
+
+
+<h2 id="s4">四、我自己已经修掉的四处</h2>
+
+<div class="grid2">
+<div class="mini">
+<h4>噪声口径差 12 dB</h4>
+<p>用 <code>mean(|h|²)</code> 反推噪声再叠 SVD 阵列增益 = 把波束增益算两遍。
+错口径给 rank 3.90 / MCS 23.5，正确口径给 2.23 / 11.1。
+<b>没有你给的现网锚点，这个错误长得完全像正常结果。</b></p>
+</div>
+<div class="mini">
+<h4>MU 功率退化成信道求逆功控</h4>
+<p>预编码矩阵乘一个全局标量归一总功率，ZF 满足 <code>H̃W=c·I</code>，
+所有用户接收电平被强行拉平。症状：等效信道范数 12.0/11.7/10.7/7.2 的四个用户
+拿到<b>一模一样的谱效</b>、Jain 恒等于 1.000000。</p>
+</div>
+<div class="mini">
+<h4>体验速率分母用错</h4>
+<p>用"被调度的 TTI 数"当分母，12 个用户各报 583 Mbps、小区合计 8.2 Gbps，
+而 100 MHz 小区物理峰值约 1.2 Gbps。改成"缓冲区非空的时间"。</p>
+</div>
+<div class="mini">
+<h4>PF 死盯覆盖外用户</h4>
+<p>永远发不成功的用户 <code>R_avg→0</code>、度量发散，调度器锁死在他身上。
+实测把全小区首传 BLER 从 0.011 拖到 0.811。现在覆盖外用户被剔出调度并单独报出——
+<b>但见问题 1，统计口径还没定</b>。</p>
+</div>
+</div>
+
+<h3>字节守恒对账抓到的 bug</h3>
+<p>加了"发出去的 + 还压着的 = 到达的"这条对账后，当场抓到 HARQ 重传成功时
+漏累加 <code>served</code>，差 4.5%。<b>不做对账根本发现不了</b>——
+吞吐数字看起来完全正常。现在误差 &gt; 1% 直接报警。</p>
+
+
+<h2 id="s5">五、性能</h2>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>环节</th><th>耗时</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>信道生成（12 UE × 8 时隙 × 272 RB × 64T4R）</td><td>约 42 s</td><td>ChannelHub，一次生成可反复用</td></tr>
+<tr><td>第一相：建链路表（SVD 在这里）</td><td>0.55 s</td><td>逐 UE 逐快照算 rank 1~4 的 SINR/MCS/SE</td></tr>
+<tr><td>第二相：40000 TTI 主循环</td><td><b>0.21 s</b></td><td>纯查表 + PF 算术，无矩阵运算</td></tr>
+<tr><td>第二相：100000 TTI × 8 UE</td><td><b>0.38 s</b></td><td>—</td></tr>
+<tr><td>BLER 查表</td><td>—</td><td>按 0.5 dB 量化后缓存，命中率接近 100%</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="callout c-blue">
+<p><b>瓶颈现在完全在信道生成（42 秒），不在仿真。</b> 同一批信道可以反复跑
+不同的话务/调度/负载配置，每次只花零点几秒。所以调参迭代已经是交互式的了。</p>
+<p>要再快只能压信道生成：探测模式（11.5 倍速）已经有了，
+但它压的是 RB 数和符号数，<b>系统级仿真需要全带宽</b>，用不上。
+下一步可以考虑把信道生成的结果缓存到磁盘按配置指纹复用。</p>
+</div>
+
+
+<footer>
+superwireless · 通宵进展与待审问题 · 2026-08-02 凌晨<br>
+所有数字来自实跑，脚本在会话 scratchpad。代码：mumimo.py / system.py / algorithms.py。
+测试：test_mumimo 57 项、test_system 30 项、test_interference 277 项。
+</footer>
+
+</div>
+</body>
+</html>

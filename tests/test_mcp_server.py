@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -59,9 +60,30 @@ async def main() -> None:
             expected = {
                 "sw_capabilities", "sw_list_presets", "sw_list_scenes", "sw_plan",
                 "sw_revise", "sw_generate", "sw_deliver",
-                "sw_describe_dataset", "sw_list_datasets",
+                "sw_describe_dataset", "sw_list_datasets", "sw_mcs_info", "sw_bler_curve",
+                "sw_tdd_mcs",
             }
-            check(expected.issubset(set(names)), f"9 个工具全部注册（实际 {len(names)} 个）")
+            check(expected.issubset(set(names)), f"12 个核心工具全部注册（实际 {len(names)} 个）")
+
+            print("\n" + "=" * 68 + "\n1.5  表驱动 BLER 查询\n" + "=" * 68)
+            curve = _payload(await session.call_tool(
+                "sw_bler_curve",
+                {"mcs": 15, "tx_mode": "newtx", "sinr_db_list": [14.0, 14.05]},
+            ))
+            check(curve.get("source_id") == "company_20b_256qam", "MCP 返回曲线来源")
+            check(abs(curve.get("required_sinr_db", 0.0) - 14.0421) < 1e-3,
+                  "MCP 返回 MCS15 NewTx 10% BLER 门限")
+            queried = curve.get("query", {}).get("bler", [])
+            check(len(queried) == 2 and abs(queried[0] - 0.132) < 1e-12 and
+                  abs(queried[1] - 0.0949) < 1e-12,
+                  "MCP 在原始 SINR 网格点逐值返回 BLER")
+
+            mcs3 = _payload(await session.call_tool(
+                "sw_mcs_info", {"table": 3, "show_bler_anchors": True}
+            ))
+            check(len(mcs3.get("mcs_table", [])) == 28 and
+                  mcs3.get("verify", {}).get("consistent") is True,
+                  "MCP 表 3 覆盖 28 档且完整性自检通过")
 
             print("\n" + "=" * 68 + "\n2  sw_capabilities\n" + "=" * 68)
             caps = _payload(await session.call_tool("sw_capabilities", {}))
@@ -141,7 +163,7 @@ async def main() -> None:
                     },
                 )
             )
-            print(f"  改动：")
+            print("  改动：")
             for c in rev["changes"]:
                 print(f"    {c}")
             check(len(rev["changes"]) >= 4, "差分修正生效")
@@ -154,13 +176,50 @@ async def main() -> None:
             print(f"  形状       {s['shape']}")
             print(f"  耗时       {s['elapsed_s']}s")
             print(f"  SINR       中位数 {s['sinr_dB']['median']} dB")
-            print(f"\n  替用户做的决定（会转述给用户）：")
+            print("\n  替用户做的决定（会转述给用户）：")
             for a in gen["auto_decided"][:6]:
                 print(f"    · {a}")
             check(bool(gen["auto_decided"]), "列出了自动决定的项")
             check(s["shape"]["BS_ant"] == 4, "用户指定的 4T4R 生效")
 
             ds_id = gen["dataset_id"]
+
+            print("\n" + "=" * 68 + "\n5.5  sw_tdd_mcs —— TDD CQI/BF Gain/OLLA\n" + "=" * 68)
+            tdd = _payload(await session.call_tool(
+                "sw_tdd_mcs",
+                {
+                    "dataset_id": ds_id,
+                    "cqi": 9,
+                    "olla_mcs_offset": -0.2,
+                    "feedback_ack": False,
+                },
+            ))
+            check(tdd.get("scheduled") is True and tdd.get("rank", 0) >= 1,
+                  "真实数据上完成 TDD MCS 决策并保留 rank")
+            check(tdd.get("cqi_initial_mcs") == 15 and
+                  abs(tdd.get("cqi_mcs_sinr_db", 0.0) - 14.0421) < 1e-3,
+                  "MCP 将 CQI9 映射到 MCS15 NewTx 门限")
+            check(len(tdd.get("pmi_stream_sinr_db", [])) == tdd.get("rank") and
+                  len(tdd.get("svd_stream_sinr_db", [])) == tdd.get("rank") and
+                  len(tdd.get("bf_gain_per_stream_db", [])) == tdd.get("rank"),
+                  "MCP 返回逐流 PMI/SVD SINR 与 BF Gain 审计量")
+            check(abs(tdd.get("user_sinr_db", 0.0) -
+                      (tdd.get("cqi_mcs_sinr_db", 0.0) + tdd.get("bf_gain_user_db", 0.0))) < 2e-4,
+                  "用户 SINR 等于 CQI 门限与 BF Gain 的 dB 域叠加")
+            check(tdd.get("final_mcs") == max(
+                      0, min(27, int((tdd.get("mcs_after_bf", 0) - 0.2) // 1))),
+                  "MCP 最终 MCS 遵循加 OLLA、floor、钳位顺序")
+            check(tdd.get("receiver") == "classic MMSE" and
+                  "only precoding weight changes" in tdd.get("fairness_contract", ""),
+                  "MCP 结果钉住 MMSE 与同工况预编码对照")
+            check(abs(tdd.get("olla_next_offset_mcs", 0.0) + 1.1) < 1e-12,
+                  "NACK 只更新下一时刻 OLLA 状态")
+
+            cqi0 = _payload(await session.call_tool(
+                "sw_tdd_mcs", {"dataset_id": ds_id, "cqi": 0},
+            ))
+            check(cqi0.get("scheduled") is False and cqi0.get("final_mcs") is None,
+                  "MCP 对 CQI0 返回不调度")
 
             print("\n" + "=" * 68 + "\n6  sw_deliver —— 取货代码\n" + "=" * 68)
             d1 = _payload(await session.call_tool("sw_deliver", {"dataset_id": ds_id, "want": "信道"}))
@@ -204,6 +263,18 @@ async def main() -> None:
             lst = _payload(await session.call_tool("sw_list_datasets", {}))
             print(f"  本机已有 {len(lst['datasets'])} 个数据集")
             check(len(lst["datasets"]) >= 1, "数据集列表可用")
+
+            print("\n" + "=" * 68 + "\n9  说明书回传：没人点也要干净返回\n" + "=" * 68)
+            # `got=0` 是**正常路径**，不是错误：用户可能还在看，也可能改用对话说了。
+            # 早先这里若抛异常或长时间挂住，agent 就会以为工具坏了并放弃这条交互。
+            _t0 = time.time()
+            wait = _payload(await session.call_tool("sw_await_config", {"timeout_s": 2}))
+            _el = time.time() - _t0
+            print(f"  等了 {_el:.1f} 秒，got={wait.get('got')}")
+            check(wait.get("got") == 0 and "error" not in wait, "没人点时干净返回 got=0")
+            check("note" in wait and "不是错误" in wait["note"], "明说超时不是错误")
+            check(2.0 <= _el < 8.0, f"真的按 timeout_s 等（实测 {_el:.1f} 秒）")
+            check(wait["bridge"]["enabled"] is True, "回传桥状态一并返回，便于排查")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>superwireless MU-MIMO 算法流程</title>
+<style>
+  :root{
+    --bg:#fafafa; --card:#fff; --ink:#1d1d1f; --ink-soft:#6e6e73;
+    --border:#d2d2d7; --accent:#0071e3;
+    --success:#34c759; --warning:#ff9f0a; --danger:#ff3b30;
+    --code-bg:#1d1d1f; --code-ink:#f5f5f7;
+    --tint-blue:#eef5fd; --tint-blue-ink:#0055b3;
+    --tint-green:#eef9f0; --tint-green-ink:#1a7a34;
+    --tint-amber:#fdf5e8; --tint-amber-ink:#8a5a00;
+    --tint-red:#fdeeed; --tint-red-ink:#a32620;
+    --tint-grey:#f2f2f4; --tint-grey-ink:#4a4a4e;
+    --tint-purple:#f3f0fb; --tint-purple-ink:#5a3ec8;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#1d1d1f; --card:#2c2c2e; --ink:#f5f5f7; --ink-soft:#aeaeb2;
+      --border:#38383a; --accent:#0a84ff;
+      --success:#30d158; --warning:#ffd60a; --danger:#ff453a;
+      --tint-blue:#12263c; --tint-blue-ink:#8ec2ff;
+      --tint-green:#14301c; --tint-green-ink:#7ee096;
+      --tint-amber:#33280c; --tint-amber-ink:#ffd77a;
+      --tint-red:#3a1a18; --tint-red-ink:#ff9a92;
+      --tint-grey:#333336; --tint-grey-ink:#c8c8cc;
+      --tint-purple:#241d3d; --tint-purple-ink:#b9a6f5;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; padding:40px 20px; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    font-size:15px; line-height:1.75; overflow-x:hidden;}
+  .wrap{max-width:1140px; margin:0 auto;}
+  h1{font-size:34px; font-weight:700; letter-spacing:-0.03em; margin:0 0 10px;}
+  .tagline{font-size:17px; color:var(--ink-soft); margin:0 0 8px;}
+  .meta{color:var(--ink-soft); font-size:13px; margin:0 0 28px; font-family:"SF Mono",Consolas,monospace;}
+  h2{font-size:24px; font-weight:700; letter-spacing:-0.02em; margin:54px 0 8px; padding-top:22px; border-top:1px solid var(--border);}
+  h3{font-size:18px; font-weight:600; margin:32px 0 8px;}
+  h4{font-size:15px; font-weight:600; margin:22px 0 6px;}
+  p{margin:10px 0;}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:24px; margin:20px 0;}
+  .lead{font-size:16px; color:var(--ink-soft); margin:0 0 18px;}
+
+  .toc{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px 24px; margin:24px 0 34px;}
+  .toc ol{margin:6px 0; padding-left:22px; columns:2; column-gap:32px;}
+  .toc li{margin:4px 0; break-inside:avoid;}
+  .toc a{color:var(--accent); text-decoration:none;}
+  .toc a:hover{text-decoration:underline;}
+
+  .callout{border-radius:10px; padding:16px 20px; margin:18px 0; border-left:3px solid;}
+  .callout p:first-child{margin-top:0;} .callout p:last-child{margin-bottom:0;}
+  .c-blue{background:var(--tint-blue); color:var(--tint-blue-ink); border-left-color:var(--accent);}
+  .c-green{background:var(--tint-green); color:var(--tint-green-ink); border-left-color:var(--success);}
+  .c-amber{background:var(--tint-amber); color:var(--tint-amber-ink); border-left-color:var(--warning);}
+  .c-red{background:var(--tint-red); color:var(--tint-red-ink); border-left-color:var(--danger);}
+  .c-purple{background:var(--tint-purple); color:var(--tint-purple-ink); border-left-color:#5a3ec8;}
+
+  .plain{background:var(--tint-grey); color:var(--tint-grey-ink); border-radius:10px; padding:14px 18px; margin:14px 0; font-size:14.5px;}
+  .plain::before{content:"白话讲　"; font-weight:600;}
+  .plain p{margin:8px 0;} .plain p:first-of-type{display:inline;}
+
+  .tbl-wrap{overflow-x:auto; margin:16px 0; border:1px solid var(--border); border-radius:10px;}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; background:var(--card);}
+  th,td{padding:9px 13px; text-align:left; border-bottom:1px solid var(--border); vertical-align:top;}
+  th{background:var(--tint-grey); color:var(--tint-grey-ink); font-weight:600; white-space:nowrap; font-size:13px;}
+  tr:last-child td{border-bottom:none;}
+  code{font-family:"SF Mono",Consolas,Monaco,monospace; background:var(--tint-grey); color:var(--tint-grey-ink);
+       padding:1px 5px; border-radius:4px; font-size:12.5px;}
+  td code,th code{font-size:12px;}
+  .nowrap{white-space:nowrap;}
+  pre{background:var(--code-bg); color:var(--code-ink); padding:16px 20px; border-radius:10px; overflow-x:auto;
+      font-family:"SF Mono",Consolas,Monaco,monospace; font-size:12.5px; line-height:1.62; margin:14px 0;}
+  pre code{background:none; color:inherit; padding:0; font-size:inherit;}
+  .cm{color:#8e8e93;}
+
+  ul,ol{margin:10px 0; padding-left:24px;} li{margin:5px 0;}
+
+  .pill{display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; white-space:nowrap;}
+  .p-ok{background:var(--tint-green); color:var(--tint-green-ink);}
+  .p-no{background:var(--tint-red); color:var(--tint-red-ink);}
+  .p-mid{background:var(--tint-amber); color:var(--tint-amber-ink);}
+  .p-info{background:var(--tint-blue); color:var(--tint-blue-ink);}
+  .p-out{background:var(--tint-grey); color:var(--tint-grey-ink);}
+  .p-purple{background:var(--tint-purple); color:var(--tint-purple-ink);}
+
+  .grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; margin:18px 0;}
+  .mini{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:18px;}
+  .mini h4{margin:0 0 8px; font-size:15px;}
+  .mini p{margin:6px 0; font-size:14px; color:var(--ink-soft);}
+
+  .src{font-family:"SF Mono",Consolas,monospace; font-size:12px; color:var(--ink-soft);}
+  footer{margin-top:64px; padding-top:24px; border-top:1px solid var(--border); color:var(--ink-soft); font-size:13px;}
+
+  /* --- 本页专用 --- */
+  .rank{display:grid; grid-template-columns:44px 1fr; gap:0 16px; margin:16px 0;}
+  .rank .no{font:700 26px "SF Mono",Consolas,monospace; color:var(--accent); line-height:1.3;}
+  .rank .bd{border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:16px;}
+  .rank .bd:last-child{border-bottom:none;}
+  .rank h4{margin:0 0 4px; font-size:16.5px;}
+  .rank .tags{display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 8px;}
+  .rank p{margin:6px 0; font-size:14.5px;}
+
+  .stack{margin:20px 0; border:1px solid var(--border); border-radius:12px; overflow:hidden;}
+  .layer{display:grid; grid-template-columns:170px 1fr 96px; gap:14px; align-items:start;
+         padding:11px 16px; border-bottom:1px solid var(--border); font-size:13.5px;}
+  .layer:last-child{border-bottom:none;}
+  .layer .nm{font-weight:600;}
+  .layer .ds{color:var(--ink-soft);}
+  .layer.have{background:var(--tint-green);} .layer.have .nm{color:var(--tint-green-ink);}
+  .layer.part{background:var(--tint-amber);} .layer.part .nm{color:var(--tint-amber-ink);}
+  .layer.gap{background:var(--tint-red);}   .layer.gap .nm{color:var(--tint-red-ink);}
+  .layer.out{background:var(--tint-grey);}  .layer.out .nm{color:var(--tint-grey-ink);}
+  .layer .st{text-align:right;}
+  @media (max-width:640px){ .layer{grid-template-columns:1fr; gap:2px;} .layer .st{text-align:left;} }
+
+  .legend{display:flex; gap:14px; flex-wrap:wrap; margin:10px 0 0; font-size:13px; color:var(--ink-soft);}
+</style>
+<style>
+  .step{display:grid; grid-template-columns:46px 1fr; gap:0 16px; margin:18px 0;}
+  .step .no{font:700 22px "SF Mono",Consolas,monospace; color:var(--accent); line-height:1.5;}
+  .step .bd{border-left:2px solid var(--border); padding:0 0 20px 18px; margin-left:-9px;}
+  .step h3{margin:0 0 6px; font-size:17px;}
+  .fml{background:var(--tint-grey); color:var(--tint-grey-ink); border-radius:8px;
+       padding:12px 16px; margin:10px 0; font-family:"SF Mono",Consolas,monospace;
+       font-size:13px; overflow-x:auto; white-space:pre;}
+  .ask{background:var(--tint-purple); color:var(--tint-purple-ink); border-radius:10px;
+       padding:14px 18px; margin:14px 0; border-left:3px solid #5a3ec8;}
+  .ask::before{content:"要你拍板　"; font-weight:700;}
+  .ask p:first-of-type{display:inline;}
+  .ask p{margin:8px 0;}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+<h1>MU-MIMO 算法流程</h1>
+<p class="tagline">等效信道 → 配对 → 多用户预编码 → 功率分配 → 逐用户 SINR</p>
+<p class="meta">2026-08-01 · 参考 Sionna <code>rzf_precoding_matrix</code> 与 Yoo &amp; Goldsmith 2006 · <b>待你确认</b></p>
+
+<div class="callout c-amber">
+<p><b>这份文档是给你 check 的。</b> 代码已经跑通、37 项测试全过，但里面有
+<b>六个我替你做了的选择</b>（下面用紫色框标出）。它们都会实打实地改变结论数字，
+不是风格问题。看完告诉我哪几个要调。</p>
+</div>
+
+<h2>零、先看结论数字</h2>
+
+<p class="lead">64 端口 / 12 用户 / 4 收天线 / 总功率归一到 1，seed=9。</p>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>场景</th><th>CSI NMSE</th><th>理想 CSI</th><th>实际 CSI</th><th>掉幅</th><th>残余干扰</th></tr></thead>
+<tbody>
+<tr><td>单小区（CSI 干净）</td><td>−31.1 dB</td><td>46.07</td><td>45.69</td><td>−0.8%</td><td>2.4e−5</td></tr>
+<tr><td>多小区 <code>ls_linear</code>（导频被污染）</td><td>−8.6 dB</td><td>46.28</td><td><b>23.92</b></td><td><b>−48.3%</b></td><td>3.2e−2</td></tr>
+<tr><td>多小区 <code>ls_mmse</code></td><td>−10.7 dB</td><td>46.28</td><td>27.80</td><td>−39.9%</td><td>1.9e−2</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="callout c-red">
+<p><b>一句话：MU-MIMO 在导频污染下掉一半。</b> 而换一档信道估计器（<code>ls_mmse</code>）
+能捞回 3.9 bit/s/Hz。这两件事是连着的——所以刚暴露的那个估计器旋钮不是可有可无的配置项，
+它直接决定 MU 的结论。</p>
+<p>反过来说：<b>任何用 <code>h_true</code> 做预编码得出的 MU 增益都不可信</b>，
+它默认基站有上帝视角。代码里 <code>h_for_precoding</code> 与评估信道是分开的两个参数，
+结果里带 <code>csi_for_precoding</code> 字段，门 2 能查。</p>
+</div>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>配对</th><th>预编码</th><th>配对数</th><th>和谱效</th><th>相对 SU</th><th>公平度</th></tr></thead>
+<tbody>
+<tr><td>SU 基线（SVD 4 层，逐用户平均）</td><td>—</td><td>1</td><td>36.64</td><td>1.00×</td><td>—</td></tr>
+<tr><td>SUS</td><td>ZF</td><td>4</td><td>46.07</td><td>1.26×</td><td>1.000</td></tr>
+<tr><td>SUS</td><td>RZF</td><td>4</td><td>46.07</td><td>1.26×</td><td>1.000</td></tr>
+<tr><td>SUS（放宽上限）</td><td>RZF</td><td>5</td><td>54.56</td><td>1.49×</td><td>—</td></tr>
+<tr><td>全选，不配对</td><td>RZF</td><td>12</td><td><b>74.24</b></td><td><b>2.03×</b></td><td>0.984</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="callout c-amber">
+<p><b>"不配对"反而最高，这不是 bug。</b> 64 端口只服务 12 个用户时空间自由度富余，
+ZF 撑得住 12 条流。配对真正开始起作用是在<b>用户数逼近端口数</b>、
+或者 <b>CSI 有误差</b>的时候——那时把强相关用户塞进同一组，ZF 会互相把功率吃光。
+所以这张表不能读成"配对没用"，只能读成"这个工况下自由度还没用完"。</p>
+</div>
+
+
+<h2>一、算法流程</h2>
+
+<div class="step">
+<div class="no">1</div><div class="bd">
+<h3>逐用户等效信道</h3>
+<p>每个用户的下行信道是 <code>H_u^H</code>（<code>[UE_ant, BS_ant]</code>）。
+在每个 RB 上做 SVD，取前 <code>S</code> 个左奇异向量当接收合并权：</p>
+<div class="fml">H_u^H = U Σ V^H   →   等效行向量  h̃_u,s = u_s^H H_u^H = σ_s v_s^H  ∈ C^(1×BS)</div>
+<p>这一步把"用户有几根天线"折叠掉，之后的配对与预编码都在行向量上做——
+SUS、SLNR 这些准则都假设每流一个行向量。</p>
+<div class="ask">
+<p><b>接收合并权是"单用户最优"选的</b>，此刻还不知道会和谁配对。
+严格最优要与配对联合优化，那是 NP 难，业界普遍接受这个次优。
+如果要更接近现网，可以改成迭代：先配对 → 按配对结果重算合并权 → 再配对，迭代 2~3 轮。
+<b>要不要加这个迭代？</b></p>
+</div>
+</div></div>
+
+<div class="step">
+<div class="no">2</div><div class="bd">
+<h3>配对（选谁一起发）</h3>
+<p>默认 <b>SUS</b>（Yoo &amp; Goldsmith 2006，半正交用户选择）。贪心：</p>
+<div class="fml">S = {}；候选 T = 全部用户
+循环直到 |S| = max_users 或 T 空：
+  1. 对每个 i ∈ T，把 h̃_i 投到 span{已选方向} 的正交补，得到 g_i
+  2. 选 argmax_i ( ‖g_i‖ · w_i )              ← w_i 是比例公平权重
+  3. 把它加进 S，其正交化方向加进基
+  4. 从 T 中剔除所有与它相关系数 &gt; corr_threshold 的候选</div>
+<p>复杂度 O(K²·max_users)。另外提供 <code>greedy_sum_rate</code>（每轮真算一遍
+ZF 和速率，更准但每轮要 K 次求逆）、<code>best_single</code>（SU 对照）、
+<code>all</code>（不筛选）。</p>
+<div class="ask">
+<p>三件事：<b>(a)</b> 配对在<b>全带宽平均</b>的等效信道上做（宽带配对）。
+逐 RB 配对更优但要求逐 RB 反馈，现网基本不用——<b>确认走宽带？</b><br>
+<b>(b)</b> <code>corr_threshold</code> 默认 <b>0.5</b>，这是常见取值不是标准值，
+<b>你们现场用多少？</b><br>
+<b>(c)</b> 配对用的是<b>预编码侧的 CSI</b>（真实基站看不到 h_true）。
+用 h_true 配对等于偷看，MU 增益会偏乐观。</p>
+</div>
+</div></div>
+
+<div class="step">
+<div class="no">3</div><div class="bd">
+<h3>多用户预编码</h3>
+<p>把已选用户的等效行向量堆成 <code>H̃ ∈ C^(N_stream×BS)</code>：</p>
+<div class="fml">ZF :  W ∝ H̃^H (H̃ H̃^H)^(−1)
+RZF:  W ∝ H̃^H (H̃ H̃^H + αI)^(−1)，α = N_stream·σ² / P
+MRT:  W ∝ H̃^H</div>
+<p>然后<b>逐列归一到单位范数</b>——<code>W</code> 只表示方向。
+这与 Sionna 的 <code>rzf_precoding_matrix</code> 一致（它也是逐列归一）。</p>
+<div class="callout c-red">
+<p><b>这里踩过一个坑，值得单独讲。</b> 我最初把整个矩阵乘一个全局标量、
+让 <code>tr(WW^H) = P</code>。看着合理，实际上 ZF 满足 <code>H̃W = c·I</code>——
+<b>所有用户的接收电平被强行拉平</b>，弱用户为了达到同一电平会吃掉大部分发射功率。
+这就是信道求逆功控，公认的劣解。</p>
+<p>症状极隐蔽：实测四个用户等效信道范数 12.0 / 11.7 / 10.7 / 7.2，
+谱效却<b>一模一样都是 11.482</b>，Jain 公平度恒等于 <b>1.000000</b>——
+看起来像"MU 天生公平"。修正后变成 11.71 / 11.77 / 11.29 / 11.31。</p>
+</div>
+</div></div>
+
+<div class="step">
+<div class="no">4</div><div class="bd">
+<h3>功率分配</h3>
+<p>方向定了之后再决定每流分多少，总和归一到 <code>P = 1</code>：</p>
+<div class="fml">equal       : p_k = P / N_stream
+waterfilling: p_k = max(0, μ − σ²/g_k)，二分求 μ 使 Σp_k = P</div>
+<div class="ask">
+<p><b>总功率归一到 1，与 SU 侧口径严格一致。</b>
+Sionna 用的是 <code>tr(GG^H) = K</code>（每流各一份功率），
+照搬过来 MU 会比 SU 白拿 K 倍功率，"MU 增益"里一大半就成了功率增益，
+SU/MU 对比直接失效。<b>这条我按"必须可比"处理了；如果你们现场的口径是
+按流配功率，告诉我改。</b></p>
+</div>
+</div></div>
+
+<div class="step">
+<div class="no">5</div><div class="bd">
+<h3>逐用户 SINR</h3>
+<div class="fml">G = H̃_eval · W          ← 注意用「评估」信道，不是预编码用的那个
+SINR_k = p_k|G_kk|² / ( Σ_{j≠k} p_j|G_kj|² + σ² )
+SE     = mean_RB Σ_k log₂(1 + SINR_k)</div>
+<p>理想 CSI + ZF 时 <code>G</code> 严格对角，用户间干扰为 0（测试里断言到 1e−12）。
+CSI 有误差时非对角项就是<b>残余干扰</b>，结果里以 <code>leakage_ratio</code> 报出。</p>
+<div class="ask">
+<p><b>目前只算小区内的用户间干扰，没有把邻区干扰加进 σ²。</b>
+接上 <code>linklevel.interference_covariance</code> 就能补，而且和刚做的 IRC
+是同一套东西。<b>要不要现在就接？</b> 接了之后 MU 增益会明显下降——
+邻区干扰不会因为你做了 MU 就变小，但分母变大后相对增益被稀释。</p>
+</div>
+</div></div>
+
+
+<h2>二、需要你拍板的六点（汇总）</h2>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th style="min-width:120px">决策点</th><th>我选了什么</th><th>影响</th></tr></thead>
+<tbody>
+<tr><td><b>接收合并权</b></td><td>单用户 SVD，不与配对联合迭代</td><td>次优但业界通行。加 2~3 轮迭代能再涨一点</td></tr>
+<tr><td><b>配对粒度</b></td><td>宽带（全带宽平均）</td><td>逐 RB 更优但要逐 RB 反馈，现网基本不用</td></tr>
+<tr><td><b>相关门限</b></td><td><code>corr_threshold = 0.5</code></td><td>常见取值，非标准值。<b>想知道你们现场用多少</b></td></tr>
+<tr><td><b>功率口径</b></td><td>总功率 = 1，与 SU 一致</td><td>照搬 Sionna 的每流一份会让 MU 白拿 K 倍</td></tr>
+<tr><td><b>配对用的 CSI</b></td><td>预编码侧的（不偷看 h_true）</td><td>用真值配对会让 MU 增益偏乐观</td></tr>
+<tr><td><b>邻区干扰</b></td><td>暂未计入 SINR 分母</td><td>接上会显著拉低 MU 增益，但更真实</td></tr>
+</tbody>
+</table>
+</div>
+
+
+<h2>三、还没做的</h2>
+
+<ul>
+<li><b>MU 的 MCS 选择与吞吐。</b> 现在只到谱效，没接 <code>linkadapt</code>
+那条 CQI→MCS→TBS 链。接上之后才能说"这个小区能扛多少 Mbps"。</li>
+<li><b>多流用户。</b> <code>streams_per_user</code> 参数在，但 &gt; 1 时的配对准则
+（用户内多流之间也会互相干扰）没有专门处理。</li>
+<li><b>BD（块对角化）。</b> 每用户多流时比 ZF 更合适，目前只有 ZF / RZF / MRT。</li>
+<li><b>比例公平的时间维。</b> <code>weights</code> 接口在，但没有跨时隙的历史速率
+状态机——真正的 PF 调度需要它，而调度器按定位是不做的。
+<b>这条要不要破例？</b> 不做的话 <code>weights</code> 只能由调用方自己维护。</li>
+</ul>
+
+
+<footer>
+superwireless · MU-MIMO 算法流程 · 2026-08-01<br>
+数字来自实跑（company_64t4r / company_64t4r_multicell，12 用户，seed=9）。
+代码在 <code>src/superwireless/mumimo.py</code>，测试 37 项在 <code>tests/test_mumimo.py</code>。
+</footer>
+
+</div>
+</body>
+</html>

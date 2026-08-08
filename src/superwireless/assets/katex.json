@@ -1,0 +1,10 @@
+{
+  "version": "0.16.11",
+  "source": "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/",
+  "fonts": 20,
+  "css_bytes": 367436,
+  "js_bytes": 275414,
+  "css_sha256": "09a8c5067dc4dd378fb15024543a29783c89625153d5d33eb69d96fa146748ba",
+  "js_sha256": "e6bfe5deebd4c7ccd272055bab63bd3ab2c73b907b6e6a22d352740a81381fd4",
+  "license": "MIT (KaTeX, https://github.com/KaTeX/KaTeX/blob/main/LICENSE)"
+}

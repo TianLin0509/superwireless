@@ -429,7 +429,7 @@ ds.h_interferers   <span class="cm"># [N, K-1, T, RB, BS_ant, UE_ant]        干
 <tr><td><code>ds.link(i, method=, receiver=)</code></td><td>LinkPerformance</td><td>单样本：逐层 SINR、谱效、容量上界、达成率</td></tr>
 <tr><td><code>ds.monte_carlo(method=)</code></td><td>MonteCarloResult</td><td>均值 + 95% 置信区间 + <strong>收敛判断</strong> + 分位数 + rank 分布</td></tr>
 <tr><td><code>ds.compare_precoders()</code></td><td>dict</td><td>SVD / 宽带SVD / TypeI / DFT 横向对比</td></tr>
-<tr><td><code>ds.validate()</code></td><td>ValidationReport</td><td><strong>17 项可信度检查</strong></td></tr>
+<tr><td><code>ds.validate()</code></td><td>ValidationReport</td><td><strong>18 项可信度检查</strong></td></tr>
 </tbody>
 </table>
 </div>
@@ -571,7 +571,7 @@ ds.h_interferers   <span class="cm"># [N, K-1, T, RB, BS_ant, UE_ant]        干
 <thead><tr><th>访问方式</th><th>返回</th><th>说明</th></tr></thead>
 <tbody>
 <tr><td><code>ds.gate()</code> / <code>sw_gate</code></td><td>GateResult</td>
-<td><strong>门 1</strong>：17 项体检翻译成门禁语言，硬性项不通过即拦截</td></tr>
+<td><strong>门 1</strong>：18 项体检翻译成门禁语言，硬性项不通过即拦截</td></tr>
 <tr><td><code>ds.calibrate()</code> / <code>sw_calibrate</code></td><td>CalibrationReport</td>
 <td><strong>3GPP §7.8 校准量</strong>：耦合损耗、几何量（含噪/不含噪）、时延与角度扩展、PRB 奇异值三条 CDF</td></tr>
 <tr><td><code>ds.compare_arms(a, b)</code> / <code>sw_compare_arms</code></td><td>ComparisonResult</td>
@@ -628,7 +628,7 @@ superwireless 启动时会用逐字核对过的标准表覆盖。
 · <strong>QuaDRiGa</strong>——需要 MATLAB/Octave 运行时<br>
 · <strong>直接设定信噪比</strong>——它是路损、发射功率、撒点位置的结果<br>
 · <strong>用剖面强制视距</strong>——视距由几何判定<br>
-· 接收机链路级仿真（BLER 需要你自己接）</p>
+· 通用接收机链路级仿真（现有表 3 只覆盖经典 MMSE 接收机的 20B NewTx/ReTx BLER 曲线）</p>
 </div>
 </div>
 
@@ -637,6 +637,7 @@ superwireless 启动时会用逐字核对过的标准表覆盖。
 <table>
 <thead><tr><th>能力</th><th>条件</th><th>不满足时</th></tr></thead>
 <tbody>
+<tr><td>TDD CQI/BF Gain/OLLA 选 MCS</td><td>CQI 来自 PMI 权；SVD/PMI 使用同一信道、CSI、rank、功率、干扰和经典 MMSE 接收机</td><td>工况或 rank 不一致时拒绝计算；CQI0 返回不调度</td></tr>
 <tr><td>每条径的角度</td><td>必须用 CDL 模型</td><td>TDL 下角度字段为 <code>None</code>；射线追踪数据直接报错</td></tr>
 <tr><td>干扰小区信道</td><td>多小区 + 打开 <code>interferer_channels</code></td><td><code>h_interferers</code> 为 <code>None</code>，干扰只体现在 SINR 里<br><span class="src">干扰协调类任务会自动打开</span></td></tr>
 <tr><td>下行预编码矩阵</td><td>视配置而定</td><td>实测单小区为 <code>None</code>，多小区/多时隙有值。<strong>用前判空</strong></td></tr>

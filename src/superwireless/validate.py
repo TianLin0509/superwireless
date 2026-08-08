@@ -676,6 +676,75 @@ def check_interference_modeled(ds: Any) -> Check:
     )
 
 
+def check_antenna_model(ds: Any) -> Check:
+    """基站阵列模型是不是本地真实硬件。
+
+    真实 AAU 是 **1 驱 3**：64 个 RF 端口（8H x 4V x 2pol），每端口固定驱动
+    垂直相邻 3 个阵子，共 192 个物理阵子，水平 0.5λ、垂直 **0.67λ**。
+    ChannelHub 的默认 ``legacy_64`` 把 64 个端口当成 64 个**独立**阵元、
+    间距一律 0.5λ——那是另一套阵列，空间自由度高得多。
+
+    实测同 seed 单小区 30 样本：legacy 的 SVD 谱效 33.23 vs 真实 28.20，
+    吞吐 1337.5 vs 1055.5 Mbps，边缘用户 940.0 vs 582.4 Mbps——
+    **legacy 把吞吐高估 27%、边缘用户高估 61%**。
+
+    这一项是 warn 不是 error：非 64T 面板（16T / 256T 之类）本来就没有
+    1 驱 3 这回事，legacy 是合理的；显式指定 legacy 做对照也合理。
+    但**默认配置下拿 legacy 报吞吐必须被看见**。
+    """
+    from . import hardware as hw  # noqa: PLC0415
+
+    summary = getattr(ds, "summary", {}) or {}
+    block = summary.get("antenna_model") or {}
+    mode = block.get("antenna_model_mode")
+    panel = block.get("bs_panel") or ds.config.get("bs_panel")
+
+    if not mode:
+        return Check(
+            "基站阵列模型", False,
+            "数据集没有记录 antenna_model —— 2026-07-31 之前生成的都没有这一项，"
+            "它们用的是 legacy_64 独立阵元模型（吞吐偏高约 27%）。",
+            measured=None, expected="effective_subarray（64T 面板）",
+            severity="warn",
+        )
+
+    is_64t = hw.is_company_panel(panel)
+    if mode != "legacy_64":
+        detail = (
+            f"{block.get('elements_per_rf_port')} 驱动/端口、"
+            f"{block.get('physical_elements')} 物理阵子、"
+            f"水平 {block.get('horizontal_spacing_lambda')}λ / "
+            f"垂直 {block.get('ae_vertical_spacing_lambda')}λ"
+            f"（RF 端口垂直 {block.get('rf_vertical_spacing_lambda')}λ）"
+        )
+        ok = (
+            abs(float(block.get("ae_vertical_spacing_lambda") or 0) - 0.67) < 1e-9
+            if is_64t else True
+        )
+        if not ok:
+            detail += " —— **垂直间距不是 0.67λ**，这是实测纠正过的硬件值，别改"
+        return Check("基站阵列模型", ok, detail,
+                     measured=mode, expected="effective_subarray",
+                     tolerance="64T 面板的垂直阵子间距必须是 0.67λ",
+                     severity="warn")
+
+    if not is_64t:
+        return Check(
+            "基站阵列模型", True,
+            f"面板 {panel} 不是 64T 的 8x4x2，1 驱 3 不适用，legacy_64 是合理选择",
+            measured=mode, severity="info",
+        )
+    return Check(
+        "基站阵列模型", False,
+        "64T 面板却用了 legacy_64（64 个独立阵元、一律 0.5λ）—— 不是本地硬件。"
+        "真实 AAU 是 1 驱 3、192 阵子、垂直 0.67λ。"
+        "实测 legacy 把吞吐高估约 27%、边缘用户高估约 61%。"
+        "只作口径对照时可以忽略这一项。",
+        measured=mode, expected="effective_subarray",
+        severity="warn",
+    )
+
+
 def check_iot_sane(ds: Any) -> Check:
     """IoT（噪声抬升）的物理自洽性。
 
@@ -892,6 +961,7 @@ def full_report(ds: Any, *, snr_db: float = 20.0) -> ValidationReport:
         check_cell_count(ds),
         check_interference_modeled(ds),
         check_iot_sane(ds),
+        check_antenna_model(ds),
         check_pathloss_range(ds),
         check_pathloss_above_free_space(ds),
         check_delay_spread_vs_profile(ds),

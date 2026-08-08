@@ -178,10 +178,14 @@ def _guess_preset(intent: str, profile: dec.TaskProfile) -> str:
     if "require_multicell" in profile.guards or any(
         w in text for w in ("多小区", "多站", "multi-cell", "multicell", "邻区", "干扰")
     ):
-        return "multicell_7site"
+        return "company_64t4r_multicell"
     if any(w in text for w in ("最小", "冒烟", "快速", "先跑通", "smoke")):
         return "single_cell_4t4r"
-    return "single_cell_64t4r"
+    # 兜底走**本地默认配置**：真实 AAU（1 驱 3 / 192 阵子 / 0.5λ 水平 0.67λ 垂直）
+    # + n41 2.6 GHz / 30 kHz / 272 RB / 4R 下行。
+    # 旧的 single_cell_64t4r 是 3.5 GHz + legacy 独立阵元模型，留着做对照，
+    # 但不该再当默认——实测两者吞吐差 27%、边缘用户差 61%。
+    return "company_64t4r"
 
 
 # ---------------------------------------------------------------------------
@@ -399,6 +403,8 @@ def build_proposal(
         "questions": questions,
         "has_more_rounds": rnd["has_more"],
         "remaining_count": rnd["remaining_count"],
+        "target_rounds": rnd["target_rounds"],
+        "remaining_all_optional": rnd["remaining_all_optional"],
         "stop_hint": rnd["stop_hint"],
         # --- 参考信息 ---
         "also_configurable": dec.also_configurable(profile),
@@ -412,11 +418,15 @@ def build_proposal(
         "user_specified": d.user_set,
         "answered_design": dict(d.design),
         "hint": (
-            "这一轮只问上面这几个（最多 4 个），别把 also_configurable 里的也问了。"
+            "**目标 2 轮问完，最多 3 轮。** 这一轮只问 round_questions 里的这几个，"
+            "别把 also_configurable 里的也问了。设计层和参数层互不依赖，"
+            "已经合并在同一轮，照着列表一次性问出来即可。"
             "每个问题都带 options，把选项编号列出来并标明推荐项（recommended=true），"
             "最后留一句「或者你直接说」。"
-            "用户答完后再调 sw_revise，它会返回下一轮该问什么；"
-            "has_more_rounds 为 false 或用户说「随便」就直接生成。"
+            "用户答完后再调 sw_revise 拿下一轮；has_more_rounds 为 false "
+            "或用户说「随便」就直接生成。"
+            "remaining_all_optional 为 true 时，下一轮请包装成一句可跳过的话"
+            "（「剩下这些都有合理默认值，要不要直接跑？」），不要再摆一屏选项。"
         ),
     }
 

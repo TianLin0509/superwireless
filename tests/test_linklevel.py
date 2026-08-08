@@ -206,6 +206,65 @@ check(res["ls"][2] < res["ls"][0], "信噪比越高 LS 估计越准")
 check(ph.estimate_channel(ds.h_true[0], method="ideal")["nmse_db"] < -100, "理想模式无误差")
 
 # ---------------------------------------------------------------------------
+sect("10  IRC：干扰抑制合并")
+
+# 造一组可控干扰：每个干扰小区秩 1，方向互相正交 —— 这是 IRC 的教科书工况，
+# 4 根接收天线应当能把 3 个这样的干扰全部零陷掉。
+_rng = np.random.default_rng(3)
+_RB, _BS, _UE, _K = 6, 8, 4, 3
+_h = (_rng.standard_normal((1, _RB, _BS, _UE))
+      + 1j * _rng.standard_normal((1, _RB, _BS, _UE))) / np.sqrt(2)
+_dirs = np.linalg.qr(_rng.standard_normal((_UE, _UE))
+                     + 1j * _rng.standard_normal((_UE, _UE)))[0]
+_hi = np.zeros((_K, 1, _RB, _BS, _UE), dtype=complex)
+for _k in range(_K):
+    _a = (_rng.standard_normal((_BS, 1)) + 1j * _rng.standard_normal((_BS, 1))) / np.sqrt(2)
+    for _f in range(_RB):
+        _hi[_k, 0, _f] = _a @ _dirs[:, _k][None, :]      # 秩 1，方向固定且互相正交
+
+_C = ll.interference_covariance(_hi, model="precoded")
+check(_C.shape == (_RB, _UE, _UE), f"R_uu 形状 [RB,UE,UE]（实得 {_C.shape}）")
+_er = ll.effective_rank(_C)
+print(f"  R_uu 有效秩 {_er:.2f}（{_K} 个正交秩 1 干扰）")
+check(abs(_er - _K) < 0.01, f"有效秩等于独立干扰方向数（实得 {_er}）")
+
+_mmse = ll.link_performance(_h, snr_db=20.0, receiver="mmse", h_interferers=_hi)
+_irc = ll.link_performance(_h, snr_db=20.0, receiver="irc", h_interferers=_hi)
+print(f"  MMSE {_mmse.spectral_efficiency:.3f} → IRC {_irc.spectral_efficiency:.3f} "
+      f"bit/s/Hz（+{_irc.spectral_efficiency - _mmse.spectral_efficiency:.3f}）")
+check(_irc.spectral_efficiency > _mmse.spectral_efficiency,
+      "干扰有空间结构时 IRC 严格优于把干扰当白噪声的 MMSE")
+check(_irc.receiver == "irc" and _mmse.receiver == "mmse", "接收机名字如实带回结果")
+check(_irc.interference_rank is not None and _irc.interference_model == "precoded",
+      "R_uu 的秩与建模方式跟着结果一起走")
+
+# **干扰真白时两者必须重合。** 这条是反向自检：IRC 的增益只能来自非白性，
+# 如果白干扰下 IRC 还"更好"，那就是实现里多算了什么。
+_wh = np.zeros((_UE, 1, _RB, _BS, _UE), dtype=complex)
+for _k in range(_UE):
+    for _f in range(_RB):
+        _wh[_k, 0, _f] = np.ones((_BS, 1)) @ np.eye(_UE)[:, _k][None, :] / np.sqrt(_BS)
+_m2 = ll.link_performance(_h, snr_db=20.0, receiver="mmse", h_interferers=_wh)
+_i2 = ll.link_performance(_h, snr_db=20.0, receiver="irc", h_interferers=_wh)
+print(f"  白干扰下 MMSE {_m2.spectral_efficiency:.4f} / IRC {_i2.spectral_efficiency:.4f}")
+check(abs(_i2.spectral_efficiency - _m2.spectral_efficiency) < 1e-6,
+      "干扰各向同性时 IRC 与 MMSE 必须重合（没有结构可利用）")
+
+# 无干扰时两者也必须完全一样，且不带 R_uu 元信息
+_n1 = ll.link_performance(_h, snr_db=20.0, receiver="mmse")
+_n2 = ll.link_performance(_h, snr_db=20.0, receiver="irc")
+check(abs(_n1.spectral_efficiency - _n2.spectral_efficiency) < 1e-12, "无干扰时 IRC 退化成 MMSE")
+check(_n2.interference_rank is None and _n2.r_uu_source is None, "没干扰就不报 R_uu 元信息")
+
+# 样本协方差 + 对角加载：接收机真实能拿到的东西，不该优于真值
+_s1 = ll.link_performance(_h, snr_db=20.0, receiver="irc", h_interferers=_hi,
+                          r_uu_source="sample", r_uu_samples=8, diagonal_loading=0.01)
+print(f"  R_uu 真值 {_irc.spectral_efficiency:.3f} → 样本估计 {_s1.spectral_efficiency:.3f}")
+check(_s1.spectral_efficiency <= _irc.spectral_efficiency + 1e-9,
+      "样本估计的 R_uu 不会优于真值（真值是上界）")
+check(_s1.r_uu_source == "sample", "R_uu 来源如实带回")
+
+# ---------------------------------------------------------------------------
 print("\n" + "=" * 70)
 if FAILED:
     print(f"FAILED {len(FAILED)} 项：")

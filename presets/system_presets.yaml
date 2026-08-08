@@ -1,0 +1,321 @@
+# 系统级场景预设 —— 一整套仿真条件打包成一个名字。
+#
+# 结构：channel_preset（复用信道预设，不重新定义）+ generate（生成覆盖）
+#      + system（sw_system_sim 参数）+ expect（实测锚点）
+#
+# 两条硬规矩：
+# 1. expect 只写**实测过**的值，measured: false 时不许拿设计意图充数。
+#    CLAUDE.md：「preset 里的 label 是设计意图，写着「高干扰」实际只有 2 dB 的事发生过」
+# 2. pair_with 声明的对照组，除了 pair_varies 列出的那几项，其余必须逐字相同。
+#    sysscenes.check_pairs() 会强制校验——同时差三四个参数的两个场景不是对照组。
+#
+# 所有场景都要求 num_slots_per_sample >= 8：每个 UE 得有多个时间相关的快照，
+# 否则 PF 拿不到多用户分集、CSI 老化也测不出来（陈旧信道和当前信道是同一个矩阵）。
+
+# ---------------------------------------------------------------------------
+# 一、负载对照组：满载 vs 轻载
+# ---------------------------------------------------------------------------
+sys_dense_urban_loaded:
+  group: 系统级 · 负载对照
+  label: 密集城区满负载 · 21 小区 ISD 150 m · 邻区 90%
+  summary: >-
+    现网密集城区的高干扰工况，ISD 150 m、邻区 PRB 利用率 0.9 接近满负载。
+    **别拿它看 IoT**：这个场景要求多时隙（PF 分集与 CSI 老化的前提），
+    而多时隙下 IoT 的两个输入量口径不一致，算出来是坏的——
+    详见 expect.note。要看 IoT 请单独生成一批 num_slots_per_sample=1 的。
+  answers:
+    - 密集城区满负载下用户实际体验到多快
+    - 边缘用户被压到什么程度
+    - 满载与轻载的体验差多少（与 sys_dense_urban_light 配对）
+  channel_preset: high_iot_dense
+  pair_with: sys_dense_urban_light
+  pair_varies: [neighbor_prb_util, arrival_rate_hz]
+  generate:
+    num_ues: 10
+    num_samples: 80
+    num_slots_per_sample: 8
+    ue_speed_kmh: 3.0
+  system:
+    duration_s: 3.0
+    traffic_model: ftp3
+    arrival_rate_hz: 3.0
+    neighbor_prb_util: 0.9
+    csi_aging: true
+    srs_period_ms: 10.0
+  expect:
+    measured: true
+    dataset: ds_9625340c
+    n_replications: 8
+    # 格式一律是 [均值, 95% 区间半宽占均值的百分比]。**半宽和数值不可分割**——
+    # 单独引用均值就是在假装这次实验的分辨率无限高。
+    avg_mcs: [6.44, 4.1]
+    bler_first_tx: [0.214, 3.1]
+    cell_served_mbps: [87.12, 7.3]
+    occupancy: [0.922, 2.9]
+    olla_db_mean: [-3.82, 5.2]
+    cell_experienced_mbps: [32.72, 23.3]      # 半宽 23%，只能看量级
+    ue_experienced_p5_mbps: [11.53, 22.4]     # 同上
+    note: >-
+      2026-08-07 实测，8 次重复。**IoT 故意不记**：这个数据集
+      num_slots_per_sample=8，而多时隙下 sinr_dB 是各 slot 的 dB 均值、
+      sir_dB 只取最后一个 slot，两者不同口径——实测 sir−sinr 中位是 -0.53 dB
+      （物理上必须为正），80 个样本 43 个算不出 IoT。
+      信道预设 high_iot_dense 的 expect 写着 iot_dl_db 35.76（单时隙探测测的），
+      系统级同配置算出来 2.19 dB，**差 33 dB，那个 2.19 是坏的不是低的**。
+      **多时隙又是 PF 分集与 CSI 老化的前提，所以这两个需求当前无法在
+      同一个数据集上同时满足**，要看 IoT 得单独生成一批单时隙的。
+      体验速率两项半宽超过 20%，只能读量级，要收窄得加长 duration_s 或加重复次数。
+
+sys_dense_urban_light:
+  group: 系统级 · 负载对照
+  label: 密集城区轻载 · 同拓扑 · 邻区 10%
+  summary: >-
+    与 sys_dense_urban_loaded **同一批信道、同一撒点**，只把邻区负载降到 0.1、
+    话务到达率降低。两者之差就是负载本身的代价，不混其他因素。
+  answers:
+    - 负载从 10% 涨到 90%，体验速率掉多少
+    - 轻载时是不是噪声受限
+  channel_preset: high_iot_dense
+  pair_with: sys_dense_urban_loaded
+  pair_varies: [neighbor_prb_util, arrival_rate_hz]
+  generate:
+    num_ues: 10
+    num_samples: 80
+    num_slots_per_sample: 8
+    ue_speed_kmh: 3.0
+  system:
+    duration_s: 3.0
+    traffic_model: ftp3
+    arrival_rate_hz: 1.0
+    neighbor_prb_util: 0.1
+    csi_aging: true
+    srs_period_ms: 10.0
+  expect:
+    measured: true
+    dataset: ds_9625340c
+    n_replications: 8
+    avg_mcs: [7.84, 7.8]
+    bler_first_tx: [0.289, 5.0]
+    cell_experienced_mbps: [106.26, 12.1]
+    cell_served_mbps: [32.80, 17.0]
+    occupancy: [0.351, 18.1]
+    ue_experienced_p5_mbps: [40.95, 37.6]     # 半宽 38%，这一项分辨不出来
+    note: >-
+      2026-08-07 实测，8 次重复。与 sys_dense_urban_loaded 同一批信道。
+      **注意方向**：轻载的体验速率(106) 高于满载(33)，而承载吞吐(33) 低于满载(87)
+      ——体验速率衡量的是"轮到我时有多快"，满载时人人都在排队。
+      **拿这两个场景对比时必须用公共随机数**（两臂同一批 replication 流），
+      否则 5% 边缘那一项 38% 的半宽会把差异整个淹掉。
+      IoT 同样不记，原因见对照组。
+
+# ---------------------------------------------------------------------------
+# 二、CSI 时延对照组：现网 SRS 配置 vs 零时延上界
+# ---------------------------------------------------------------------------
+sys_urban_macro_field_csi:
+  group: 系统级 · CSI 时延对照
+  label: 城区宏站 · 现网 SRS 配置（10 ms + 17 倍跳频）
+  summary: >-
+    38.211 Table 6.4.1.4.3-1 的 C_SRS=57：每跳 16 RB 正好一个 RBG，
+    17 跳扫完 272 RB。10 ms 周期下全带扫一遍要 170 ms，
+    平均 CSI 年龄 87 ms——**这是默认配置，也是现网的样子**。
+  answers:
+    - 现网 SRS 配置下体验速率是多少
+    - CSI 老化吃掉了多少
+  channel_preset: company_64t4r_multicell
+  pair_with: sys_urban_macro_ideal_csi
+  pair_varies: [csi_aging]
+  generate:
+    num_ues: 10
+    num_samples: 80
+    num_slots_per_sample: 8
+    ue_speed_kmh: 30.0
+  system:
+    duration_s: 3.0
+    traffic_model: ftp3
+    arrival_rate_hz: 2.0
+    neighbor_prb_util: 0.3
+    csi_aging: true
+    srs_period_ms: 10.0
+  expect:
+    measured: true
+    dataset: ds_984082de
+    n_replications: 8
+    avg_mcs: [7.99, 5.4]
+    avg_rank: [1.759, 2.2]
+    bler_first_tx: [0.358, 8.0]
+    cell_experienced_mbps: [119.62, 8.9]
+    cell_served_mbps: [61.15, 10.9]
+    ue_experienced_p5_mbps: [37.05, 10.5]
+    olla_db_mean: [-4.21, 8.2]
+    occupancy: [0.534, 8.5]
+    note: >-
+      2026-08-07 实测，8 次重复。**替换了 2026-08-04 的单次运行值，
+      而且替换本身就是这项工作的价值证明**：旧的单次值 5% 边缘是 123.5，
+      新的 8 次均值是 101.3 —— 偏了 22%，是半宽的两倍，那次单跑抽到了离群样本。
+      与零时延对照组的差是 -52.7%，远大于两边各自 6~9% 的半宽，
+      **所以「CSI 老化吃掉一半体验速率」这个结论依然站得住**。
+
+sys_urban_macro_ideal_csi:
+  group: 系统级 · CSI 时延对照
+  label: 城区宏站 · 零时延完美 CSI（上界，不是现网）
+  summary: >-
+    与 sys_urban_macro_field_csi **除 csi_aging 外逐字相同**。
+    预编码与评估用同一个信道矩阵——**这是上界不是现网**，
+    它会系统性高估 MU 增益，只用来量"老化吃掉了多少"。
+  answers:
+    - CSI 老化的代价有多大（拿它当分母）
+  channel_preset: company_64t4r_multicell
+  pair_with: sys_urban_macro_field_csi
+  pair_varies: [csi_aging]
+  generate:
+    num_ues: 10
+    num_samples: 80
+    num_slots_per_sample: 8
+    ue_speed_kmh: 30.0
+  system:
+    duration_s: 3.0
+    traffic_model: ftp3
+    arrival_rate_hz: 2.0
+    neighbor_prb_util: 0.3
+    csi_aging: false
+    srs_period_ms: 10.0
+  expect:
+    measured: true
+    dataset: ds_984082de
+    n_replications: 8
+    avg_mcs: [10.36, 2.2]
+    avg_rank: [1.743, 2.5]
+    bler_first_tx: [0.122, 9.9]
+    cell_experienced_mbps: [252.78, 6.1]
+    cell_served_mbps: [61.67, 10.9]
+    ue_experienced_p5_mbps: [101.35, 11.0]
+    occupancy: [0.282, 10.2]
+    olla_db_mean: [-0.27, 58.9]   # 均值贴近 0，相对半宽必然爆掉，看绝对值
+    note: >-
+      2026-08-07 实测，8 次重复。**olla_db_mean 那 58.9% 不是这一项不可信**——
+      均值只有 -0.27，相对半宽的分母太小，绝对半宽其实只有 0.16 dB。
+      **接近零的量一律看绝对区间，别看相对半宽。**
+      零时延下 OLLA 本就该贴近 0（发送侧估计准，外环没什么要修的），
+      这和现网配置那边被压到 -4.21 dB 正好互为印证。
+
+# ---------------------------------------------------------------------------
+# 三、现网话务画像
+# ---------------------------------------------------------------------------
+sys_field_bimodal_traffic:
+  group: 系统级 · 话务
+  label: 现网话务画像 · 两头高中间低（30% 小包 / 30% 满包）
+  summary: >-
+    用户给的现网口径：小包（1 个 RBG）约占 30%、满包（17 个 RBG）约占 30%、
+    中间 2~16 个 RBG 相对均匀，另有 30% 的 TTI 完全没调度。
+    **小包测不到体验速率**——3GPP 掐尾口径下一个 TTI 就发完的 burst
+    整个被丢掉，这不是 bug 是该 KPI 的固有盲区，结果里大包小包分开报。
+  answers:
+    - 现网话务下 PRB 利用率是多少
+    - 大包用户和小包用户的体验差多少
+  channel_preset: company_64t4r_multicell
+  generate:
+    num_ues: 10
+    num_samples: 80
+    num_slots_per_sample: 8
+    ue_speed_kmh: 3.0
+  system:
+    duration_s: 5.0
+    traffic_model: bimodal
+    neighbor_prb_util: 0.3
+    csi_aging: true
+  expect:
+    measured: true
+    dataset: ds_6e9715bc
+    n_replications: 8
+    avg_mcs: [9.46, 4.8]
+    bler_first_tx: [0.883, 2.4]               # **不是笔误，见下**
+    cell_served_mbps: [0.94, 11.2]
+    occupancy: [0.107, 7.8]
+    olla_db_mean: [-2.05, 8.7]
+    note: >-
+      2026-08-07 实测，8 次重复。**首传 BLER 0.883 不是笔误，是这个场景的真实
+      失效模式**：小包 burst 太小，占用率只有 10.7%，5 秒里 OLLA 拿不到足够的
+      ACK/NACK 就永远收敛不了（偏置才压到 -2.05 dB，稳态需要更负）。
+      **这个场景当前不能用来下 BLER 或体验速率的结论**——
+      体验速率两项半宽 49% 与 84%，本身也分辨不出来。
+      要让它可用：加长 duration_s 到 20 秒以上，或临时开 olla_speedup。
+      另：折合 PRB 利用率 37.1% vs 现网口径 30%，差在 2~16 均匀分布的均值偏高，
+      **这个参数还没对齐**（调 p_idle_tti 没用，它不驱动仿真）。
+
+# ---------------------------------------------------------------------------
+# 四、移动性
+# ---------------------------------------------------------------------------
+sys_mobility_60kmh:
+  group: 系统级 · 移动性
+  label: 中速移动 · 60 km/h · 现网 SRS 配置
+  summary: >-
+    2.6 GHz 下 60 km/h 的多普勒是 144 Hz，Jakes 相干时间约 1.7 ms，
+    而平均 CSI 年龄 87 ms——**是相干时间的 50 倍**，预编码基本在对
+    一个无关的信道做匹配。实测 SVD 权体验速率掉 57%（320.0 → 138.3）。
+  answers:
+    - 中速移动下 CSI 老化有多致命
+    - SVD 权和 Type I 码本权哪个更耐受老化
+  channel_preset: company_64t4r_multicell
+  generate:
+    num_ues: 10
+    num_samples: 80
+    num_slots_per_sample: 8
+    ue_speed_kmh: 60.0
+  system:
+    duration_s: 3.0
+    traffic_model: ftp3
+    arrival_rate_hz: 2.0
+    neighbor_prb_util: 0.3
+    csi_aging: true
+    srs_period_ms: 10.0
+    olla_speedup: 20.0
+  expect:
+    measured: true
+    dataset: ds_0ef213d2
+    cell_experienced_mbps: 138.3
+    ue_experienced_p5_mbps: 49.7
+    avg_mcs: 5.15
+    olla_db_mean: -4.92
+    note: >-
+      2026-08-04 实测（olla_speedup=20 以便 3 秒内收敛）。
+      同配置零时延是 320.0 Mbps。
+
+# ---------------------------------------------------------------------------
+# 五、容量上界（不看体验速率）
+# ---------------------------------------------------------------------------
+sys_capacity_full_buffer:
+  group: 系统级 · 容量上界
+  label: 满缓冲容量上界 · full buffer
+  summary: >-
+    **体验速率在这个模型下没有意义**——缓冲区永不清空，3GPP 掐尾口径
+    找不到任何一个完整的 burst。它只用来看小区吞吐上界与调度器的公平性，
+    结果里只该引用 cell_served_mbps 与 Jain 公平度，不要引用体验速率。
+  answers:
+    - 这个小区的吞吐上界是多少
+    - PF 在满负载下的公平性如何
+  channel_preset: company_64t4r_multicell
+  generate:
+    num_ues: 10
+    num_samples: 80
+    num_slots_per_sample: 8
+    ue_speed_kmh: 3.0
+  system:
+    duration_s: 3.0
+    traffic_model: full_buffer
+    neighbor_prb_util: 0.3
+    csi_aging: true
+  expect:
+    measured: true
+    dataset: ds_6e9715bc
+    n_replications: 8
+    cell_served_mbps: [169.96, 0.2]
+    avg_mcs: [7.99, 0.1]
+    avg_rank: [2.005, 0.0]
+    occupancy: [1.0, 0.0]
+    cell_experienced_mbps: 0.0                # **确实是 0，这是设计意图不是 bug**
+    note: >-
+      2026-08-07 实测，8 次重复。**体验速率确实是 0**：full buffer 下缓冲区永不
+      清空，3GPP TS 28.552 的掐尾口径找不到任何一个完整 burst，
+      measured_bursts=0。这验证了 summary 里那句话，**别把它当成 bug 去修**。
+      注意所有区间都极窄（≤0.2%）——因为 full buffer 没有话务随机性，
+      唯一的随机源只剩 HARQ 抽样。**这反过来说明其他场景那些宽区间主要来自话务**。

@@ -1,0 +1,482 @@
+{
+  "sys_dense_urban_loaded": {
+    "avg_mcs": {
+      "mean": 6.4401,
+      "std": 0.3183,
+      "ci95": [
+        6.1741,
+        6.7062
+      ],
+      "n_rep": 8,
+      "cv": 0.0494,
+      "rel_half_width": 0.0413,
+      "min": 5.9616,
+      "max": 7.0088
+    },
+    "avg_rank": {
+      "mean": 1.4736,
+      "std": 0.0715,
+      "ci95": [
+        1.4138,
+        1.5333
+      ],
+      "n_rep": 8,
+      "cv": 0.0485,
+      "rel_half_width": 0.0406,
+      "min": 1.3737,
+      "max": 1.5551
+    },
+    "bler_first_tx": {
+      "mean": 0.2145,
+      "std": 0.0081,
+      "ci95": [
+        0.2077,
+        0.2212
+      ],
+      "n_rep": 8,
+      "cv": 0.0375,
+      "rel_half_width": 0.0314,
+      "min": 0.2023,
+      "max": 0.2243
+    },
+    "cell_experienced_mbps": {
+      "mean": 32.7214,
+      "std": 9.1044,
+      "ci95": [
+        25.1099,
+        40.3328
+      ],
+      "n_rep": 8,
+      "cv": 0.2782,
+      "rel_half_width": 0.2326,
+      "min": 19.9211,
+      "max": 44.7405
+    },
+    "cell_served_mbps": {
+      "mean": 87.1243,
+      "std": 7.5791,
+      "ci95": [
+        80.7881,
+        93.4605
+      ],
+      "n_rep": 8,
+      "cv": 0.087,
+      "rel_half_width": 0.0727,
+      "min": 73.1787,
+      "max": 97.657
+    },
+    "ue_experienced_p5_mbps": {
+      "mean": 11.5257,
+      "std": 3.0816,
+      "ci95": [
+        8.9494,
+        14.1019
+      ],
+      "n_rep": 8,
+      "cv": 0.2674,
+      "rel_half_width": 0.2235,
+      "min": 7.964,
+      "max": 17.8747
+    },
+    "olla_db_mean": {
+      "mean": -3.8151,
+      "std": 0.2359,
+      "ci95": [
+        -4.0123,
+        -3.6179
+      ],
+      "n_rep": 8,
+      "cv": 0.0618,
+      "rel_half_width": 0.0517,
+      "min": -4.099,
+      "max": -3.491
+    },
+    "iot_db_median": {
+      "mean": 2.1861,
+      "std": 0.0,
+      "ci95": [
+        2.1861,
+        2.1861
+      ],
+      "n_rep": 8,
+      "cv": 0.0,
+      "rel_half_width": 0.0,
+      "min": 2.1861,
+      "max": 2.1861
+    },
+    "occupancy": {
+      "mean": 0.9217,
+      "std": 0.0321,
+      "ci95": [
+        0.8948,
+        0.9485
+      ],
+      "n_rep": 8,
+      "cv": 0.0349,
+      "rel_half_width": 0.0291,
+      "min": 0.8746,
+      "max": 0.9648
+    },
+    "dataset": "ds_9625340c"
+  },
+  "sys_dense_urban_light": {
+    "avg_mcs": {
+      "mean": 7.8369,
+      "std": 0.7261,
+      "ci95": [
+        7.2298,
+        8.4439
+      ],
+      "n_rep": 8,
+      "cv": 0.0927,
+      "rel_half_width": 0.0775,
+      "min": 6.6821,
+      "max": 8.9169
+    },
+    "avg_rank": {
+      "mean": 1.4347,
+      "std": 0.0839,
+      "ci95": [
+        1.3646,
+        1.5048
+      ],
+      "n_rep": 8,
+      "cv": 0.0584,
+      "rel_half_width": 0.0489,
+      "min": 1.2832,
+      "max": 1.5575
+    },
+    "bler_first_tx": {
+      "mean": 0.2889,
+      "std": 0.0172,
+      "ci95": [
+        0.2745,
+        0.3033
+      ],
+      "n_rep": 8,
+      "cv": 0.0596,
+      "rel_half_width": 0.0498,
+      "min": 0.2693,
+      "max": 0.3138
+    },
+    "cell_experienced_mbps": {
+      "mean": 106.2563,
+      "std": 15.4005,
+      "ci95": [
+        93.3811,
+        119.1314
+      ],
+      "n_rep": 8,
+      "cv": 0.1449,
+      "rel_half_width": 0.1212,
+      "min": 79.1234,
+      "max": 127.9013
+    },
+    "cell_served_mbps": {
+      "mean": 32.7971,
+      "std": 6.6636,
+      "ci95": [
+        27.2262,
+        38.3679
+      ],
+      "n_rep": 8,
+      "cv": 0.2032,
+      "rel_half_width": 0.1699,
+      "min": 19.6148,
+      "max": 43.1159
+    },
+    "ue_experienced_p5_mbps": {
+      "mean": 40.9513,
+      "std": 18.416,
+      "ci95": [
+        25.5551,
+        56.3474
+      ],
+      "n_rep": 8,
+      "cv": 0.4497,
+      "rel_half_width": 0.376,
+      "min": 18.9849,
+      "max": 64.4115
+    },
+    "olla_db_mean": {
+      "mean": -2.1443,
+      "std": 0.4455,
+      "ci95": [
+        -2.5167,
+        -1.7718
+      ],
+      "n_rep": 8,
+      "cv": 0.2077,
+      "rel_half_width": 0.1737,
+      "min": -2.707,
+      "max": -1.349
+    },
+    "iot_db_median": {
+      "mean": 0.6866,
+      "std": 0.0,
+      "ci95": [
+        0.6866,
+        0.6866
+      ],
+      "n_rep": 8,
+      "cv": 0.0,
+      "rel_half_width": 0.0,
+      "min": 0.6866,
+      "max": 0.6866
+    },
+    "occupancy": {
+      "mean": 0.3507,
+      "std": 0.0759,
+      "ci95": [
+        0.2872,
+        0.4142
+      ],
+      "n_rep": 8,
+      "cv": 0.2165,
+      "rel_half_width": 0.181,
+      "min": 0.1904,
+      "max": 0.4163
+    },
+    "dataset": "ds_9625340c"
+  },
+  "sys_field_bimodal_traffic": {
+    "avg_mcs": {
+      "mean": 9.4644,
+      "std": 0.5396,
+      "ci95": [
+        9.0133,
+        9.9155
+      ],
+      "n_rep": 8,
+      "cv": 0.057,
+      "rel_half_width": 0.0477,
+      "min": 8.7909,
+      "max": 10.4562
+    },
+    "avg_rank": {
+      "mean": 1.7209,
+      "std": 0.0588,
+      "ci95": [
+        1.6718,
+        1.7701
+      ],
+      "n_rep": 8,
+      "cv": 0.0342,
+      "rel_half_width": 0.0286,
+      "min": 1.6362,
+      "max": 1.8178
+    },
+    "bler_first_tx": {
+      "mean": 0.883,
+      "std": 0.0256,
+      "ci95": [
+        0.8616,
+        0.9044
+      ],
+      "n_rep": 8,
+      "cv": 0.029,
+      "rel_half_width": 0.0243,
+      "min": 0.8409,
+      "max": 0.9183
+    },
+    "cell_experienced_mbps": {
+      "mean": 62.5112,
+      "std": 36.3926,
+      "ci95": [
+        32.0862,
+        92.9362
+      ],
+      "n_rep": 8,
+      "cv": 0.5822,
+      "rel_half_width": 0.4867,
+      "min": 18.1816,
+      "max": 121.1206
+    },
+    "cell_served_mbps": {
+      "mean": 0.9417,
+      "std": 0.1265,
+      "ci95": [
+        0.836,
+        1.0475
+      ],
+      "n_rep": 8,
+      "cv": 0.1343,
+      "rel_half_width": 0.1123,
+      "min": 0.7728,
+      "max": 1.1111
+    },
+    "ue_experienced_p5_mbps": {
+      "mean": 40.1123,
+      "std": 40.3645,
+      "ci95": [
+        6.3667,
+        73.8578
+      ],
+      "n_rep": 8,
+      "cv": 1.0063,
+      "rel_half_width": 0.8413,
+      "min": 3.2806,
+      "max": 98.0054
+    },
+    "olla_db_mean": {
+      "mean": -2.0531,
+      "std": 0.2135,
+      "ci95": [
+        -2.2316,
+        -1.8746
+      ],
+      "n_rep": 8,
+      "cv": 0.104,
+      "rel_half_width": 0.0869,
+      "min": -2.504,
+      "max": -1.873
+    },
+    "iot_db_median": {
+      "mean": 1.3501,
+      "std": 0.0,
+      "ci95": [
+        1.3501,
+        1.3501
+      ],
+      "n_rep": 8,
+      "cv": 0.0,
+      "rel_half_width": 0.0,
+      "min": 1.3501,
+      "max": 1.3501
+    },
+    "occupancy": {
+      "mean": 0.1069,
+      "std": 0.01,
+      "ci95": [
+        0.0986,
+        0.1152
+      ],
+      "n_rep": 8,
+      "cv": 0.0931,
+      "rel_half_width": 0.0778,
+      "min": 0.0985,
+      "max": 0.1276
+    },
+    "dataset": "ds_6e9715bc"
+  },
+  "sys_capacity_full_buffer": {
+    "avg_mcs": {
+      "mean": 7.9874,
+      "std": 0.0122,
+      "ci95": [
+        7.9772,
+        7.9977
+      ],
+      "n_rep": 8,
+      "cv": 0.0015,
+      "rel_half_width": 0.0013,
+      "min": 7.966,
+      "max": 8.0025
+    },
+    "avg_rank": {
+      "mean": 2.0054,
+      "std": 0.0001,
+      "ci95": [
+        2.0053,
+        2.0054
+      ],
+      "n_rep": 8,
+      "cv": 0.0,
+      "rel_half_width": 0.0,
+      "min": 2.0052,
+      "max": 2.0054
+    },
+    "bler_first_tx": {
+      "mean": 0.2469,
+      "std": 0.0012,
+      "ci95": [
+        0.2459,
+        0.2479
+      ],
+      "n_rep": 8,
+      "cv": 0.0047,
+      "rel_half_width": 0.0039,
+      "min": 0.2449,
+      "max": 0.2481
+    },
+    "cell_experienced_mbps": {
+      "mean": 0.0,
+      "std": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ],
+      "n_rep": 8,
+      "cv": null,
+      "rel_half_width": null,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "cell_served_mbps": {
+      "mean": 169.9605,
+      "std": 0.4301,
+      "ci95": [
+        169.601,
+        170.3201
+      ],
+      "n_rep": 8,
+      "cv": 0.0025,
+      "rel_half_width": 0.0021,
+      "min": 169.2321,
+      "max": 170.6076
+    },
+    "ue_experienced_p5_mbps": {
+      "mean": 0.0,
+      "std": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ],
+      "n_rep": 8,
+      "cv": null,
+      "rel_half_width": null,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "olla_db_mean": {
+      "mean": -5.146,
+      "std": 0.0336,
+      "ci95": [
+        -5.1741,
+        -5.1179
+      ],
+      "n_rep": 8,
+      "cv": 0.0065,
+      "rel_half_width": 0.0055,
+      "min": -5.188,
+      "max": -5.088
+    },
+    "iot_db_median": {
+      "mean": 1.3501,
+      "std": 0.0,
+      "ci95": [
+        1.3501,
+        1.3501
+      ],
+      "n_rep": 8,
+      "cv": 0.0,
+      "rel_half_width": 0.0,
+      "min": 1.3501,
+      "max": 1.3501
+    },
+    "occupancy": {
+      "mean": 1.0,
+      "std": 0.0,
+      "ci95": [
+        1.0,
+        1.0
+      ],
+      "n_rep": 8,
+      "cv": 0.0,
+      "rel_half_width": 0.0,
+      "min": 1.0,
+      "max": 1.0
+    },
+    "dataset": "ds_6e9715bc"
+  }
+}

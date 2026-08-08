@@ -158,6 +158,115 @@ def main() -> None:
     check(b24 > b1, "码块越多 TB 级 BLER 越高（任一块错则整块错）")
 
     # -----------------------------------------------------------------------
+    sect("6.5  用户提供的表驱动 NewTx/ReTx BLER 曲线")
+
+    cv = la.bc.verify_curves()
+    print(f"  {cv['n_mcs']} 个 MCS / {cv['n_curves']} 条曲线 / {cv['n_points']} 个点")
+    check(cv["consistent"], "曲线哈希、覆盖、单调性和 10% 门限全部自洽")
+    check(cv["hash_matches"], "曲线数据与导入时 SHA-256 一致")
+    check(len(la.MCS_TABLE_3) == 28, "表 3 共 28 档，覆盖 MCS 0..27")
+    check(max(m.q_m for m in la.MCS_TABLE_3) == 8, "表 3 含 256QAM")
+
+    c15n = la.bc.get_curve(15, "newtx")
+    c15r = la.bc.get_curve(15, "retx")
+    check(c15n.q_m == 6 and abs(c15n.code_rate - 0.650) < 1e-12,
+          "MCS15 NewTx 映射到 64QAM R=0.650")
+    check(abs(c15r.code_rate - 0.333) < 1e-12,
+          "MCS15 ReTx 映射到 R=0.333")
+    check(abs(float(c15n.evaluate(14.00)[0]) - 0.132) < 1e-12 and
+          abs(float(c15n.evaluate(14.05)[0]) - 0.0949) < 1e-12,
+          "MCS15 NewTx 在原始网格点逐值还原")
+    check(abs(c15n.required_sinr_db(0.1) - 14.0421) < 1e-3,
+          "MCS15 NewTx 10% BLER 门限为 14.042 dB")
+    check(abs(c15r.required_sinr_db(0.1) - 7.7429) < 1e-3,
+          "MCS15 ReTx 10% BLER 门限为 7.743 dB")
+    check(float(c15n.evaluate(0.0)[0]) == 1.0 and
+          abs(float(c15n.evaluate(30.0)[0]) - c15n.bler_points[-1]) < 1e-12,
+          "曲线范围外保守钳位，不伪造外推尾部")
+
+    tab = la.link_adaptation(np.full(273, 14.2), n_prb=273, layers=1, mcs_table=3)
+    check(tab.mcs_index == 15, "表 3 在 14.2 dB 选择 MCS15")
+    check(tab.bler_source == "company_20b_256qam", "结果显式标出表驱动 BLER 来源")
+    check(tab.retx_bler is not None and tab.retx_bler < tab.bler,
+          "HARQ 首传后使用独立 ReTx 曲线")
+    check(tab.harq_model == "newtx_then_retx_curve_reused",
+          "结果显式标出多次重传复用 ReTx 曲线的假设")
+    check("SINR" in tab.bler_axis_source and "MMSE" in tab.bler_axis_source,
+          "结果明确曲线横轴为经典 MMSE 接收机 SINR")
+
+    # -----------------------------------------------------------------------
+    sect("6.6  TDD CQI → BF Gain → MCS → OLLA")
+
+    cqi0 = la.cqi_to_mcs_by_se(0)
+    check(cqi0["scheduled"] is False and cqi0["mcs"] is None,
+          "CQI0 明确表示不调度，不静默降成 MCS0")
+
+    cqi1 = la.cqi_to_mcs_by_se(1)
+    check(cqi1["mcs"] == 0 and cqi1["clamped_low"] is True,
+          "CQI1 低于公司表最低谱效时钳到 MCS0 并留痕")
+
+    cqi9 = la.cqi_to_mcs_by_se(9)
+    check(cqi9["mcs"] == 15 and cqi9["clamped_low"] is False,
+          "CQI9 先按谱效映射到公司表 MCS15")
+
+    tdd = la.tdd_mcs_adaptation(
+        9,
+        [[13.0, 10.0], [15.0, 12.0]],
+        [[10.0, 8.0], [12.0, 10.0]],
+        olla_mcs_offset=-0.2,
+        feedback_ack=False,
+    )
+    check(tdd["scheduled"] is True and tdd["rank"] == 2 and tdd["n_rb"] == 2,
+          "TDD 决策保留逐 RB、逐流维度")
+    check(abs(tdd["cqi_mcs_sinr_db"] - 14.0421) < 1e-3,
+          "初始 MCS15 转成 NewTx 10% BLER SINR 门限")
+    check(tdd["bf_gain_per_stream_db"] == [3.0, 2.0],
+          "BF Gain 逐流等于 SVD post-MMSE SINR 减 PMI post-MMSE SINR")
+    check(abs(tdd["bf_gain_user_db"] - 2.5) < 1e-12,
+          "用户 BF Gain 在所有 RB×流上做 dB 域算术平均")
+    check(abs(tdd["user_sinr_db"] - 16.5421) < 1e-3,
+          "用户 SINR 等于初始门限叠加逐 RB/流 BF Gain 后的 dB 域平均")
+    check("dB domain" in tdd["sinr_aggregation"],
+          "结果显式声明 dB 域平均口径")
+    check(tdd["mcs_after_bf"] == 17,
+          "叠加 BF Gain 后按 NewTx 门限重映射到 MCS17")
+    check(abs(tdd["mcs_before_floor"] - 16.8) < 1e-12 and
+          tdd["mcs_after_floor"] == 16 and tdd["final_mcs"] == 16,
+          "OLLA 在 MCS 域相加后严格向下取整并钳位")
+    check(0.0 <= tdd["final_mcs_newtx_bler"] <= 1.0,
+          "最终 MCS 返回公司曲线对应的 NewTx BLER")
+    check(tdd["receiver"] == "classic MMSE" and
+          "only precoding weight changes" in tdd["fairness_contract"],
+          "结果钉住经典 MMSE 与只改变预编码权的公平对照")
+    check(abs(tdd["olla_update"]["delta_mcs"] + 0.9) < 1e-12 and
+          abs(tdd["olla_next_offset_mcs"] + 1.1) < 1e-12,
+          "10% 目标下 NACK 令下一时刻 OLLA 减 0.9 MCS")
+
+    ack = la.update_olla_mcs(0.3, True)
+    check(abs(ack["next_offset_mcs"] - 0.4) < 1e-12,
+          "ACK 令下一时刻 OLLA 加 0.1 MCS")
+
+    floor_edge = la.tdd_mcs_adaptation(
+        9, [[14.0]], [[14.0]], olla_mcs_offset=-0.01,
+    )
+    check(floor_edge["mcs_after_bf"] == 15 and floor_edge["final_mcs"] == 14,
+          "极小负 OLLA 也按数学 floor 降一档，不做截零取整")
+
+    try:
+        la.tdd_mcs_adaptation(9, [[1.0, 2.0]], [[1.0]])
+        shape_rejected = False
+    except ValueError:
+        shape_rejected = True
+    check(shape_rejected, "SVD/PMI 的 RB×流形状不一致时拒绝计算")
+
+    try:
+        la.tdd_mcs_adaptation(9, [[float("nan")]], [[1.0]])
+        nan_rejected = False
+    except ValueError:
+        nan_rejected = True
+    check(nan_rejected, "非有限 SINR 不进入 BF Gain 与 MCS 决策")
+
+    # -----------------------------------------------------------------------
     sect("7  链路自适应端到端")
 
     rng = np.random.default_rng(3)

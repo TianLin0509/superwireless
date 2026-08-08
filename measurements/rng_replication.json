@@ -1,0 +1,391 @@
+{
+  "dataset_id": "ds_6e9715bc",
+  "duration_s": 5.0,
+  "timing": {
+    "build_tables_s_median": 5.141,
+    "build_tables_s_all": [
+      5.721,
+      5.139,
+      5.141
+    ],
+    "tti_loop_s_median": 0.987,
+    "tti_loop_s_all": [
+      1.0,
+      0.968,
+      0.987
+    ],
+    "build_spread_pct": 11.3,
+    "loop_spread_pct": 3.2,
+    "n1_total_s": 6.13,
+    "n1_overhead_vs_1": 0.0,
+    "n2_total_s": 7.11,
+    "n2_overhead_vs_1": 0.161,
+    "n4_total_s": 9.09,
+    "n4_overhead_vs_1": 0.483,
+    "n8_total_s": 13.04,
+    "n8_overhead_vs_1": 1.127,
+    "n16_total_s": 20.93,
+    "n16_overhead_vs_1": 2.416
+  },
+  "variance_decomposition": {
+    "note": "replication_only：表固定，只变 traffic/harq/scheduler 流（本工具默认口径）。master_seed：连邻区负载抖动一起重抽并重建表（等价于旧版 seed 扫描）。",
+    "replication_only": {
+      "cell_experienced_mbps": {
+        "mean": 157.9703,
+        "std": 8.3712,
+        "cv_pct": 5.3,
+        "ci95": [
+          150.972,
+          164.969
+        ],
+        "rel_half_width_pct": 4.43
+      },
+      "ue_experienced_p5_mbps": {
+        "mean": 57.4708,
+        "std": 7.0982,
+        "cv_pct": 12.35,
+        "ci95": [
+          51.537,
+          63.405
+        ],
+        "rel_half_width_pct": 10.33
+      },
+      "avg_mcs": {
+        "mean": 7.1084,
+        "std": 0.3713,
+        "cv_pct": 5.22,
+        "ci95": [
+          6.798,
+          7.419
+        ],
+        "rel_half_width_pct": 4.37
+      },
+      "avg_rank": {
+        "mean": 1.7928,
+        "std": 0.0464,
+        "cv_pct": 2.59,
+        "ci95": [
+          1.754,
+          1.832
+        ],
+        "rel_half_width_pct": 2.17
+      },
+      "bler_first_tx": {
+        "mean": 0.3012,
+        "std": 0.0109,
+        "cv_pct": 3.63,
+        "ci95": [
+          0.292,
+          0.31
+        ],
+        "rel_half_width_pct": 3.04
+      }
+    },
+    "master_seed": {
+      "cell_experienced_mbps": {
+        "mean": 157.271,
+        "std": 9.9413,
+        "cv_pct": 6.32,
+        "ci95": [
+          148.96,
+          165.582
+        ],
+        "rel_half_width_pct": 5.28
+      },
+      "ue_experienced_p5_mbps": {
+        "mean": 50.8281,
+        "std": 9.7039,
+        "cv_pct": 19.09,
+        "ci95": [
+          42.715,
+          58.941
+        ],
+        "rel_half_width_pct": 15.96
+      },
+      "avg_mcs": {
+        "mean": 6.8369,
+        "std": 0.6873,
+        "cv_pct": 10.05,
+        "ci95": [
+          6.262,
+          7.412
+        ],
+        "rel_half_width_pct": 8.4
+      },
+      "avg_rank": {
+        "mean": 1.8153,
+        "std": 0.0534,
+        "cv_pct": 2.94,
+        "ci95": [
+          1.771,
+          1.86
+        ],
+        "rel_half_width_pct": 2.46
+      },
+      "bler_first_tx": {
+        "mean": 0.2941,
+        "std": 0.0274,
+        "cv_pct": 9.31,
+        "ci95": [
+          0.271,
+          0.317
+        ],
+        "rel_half_width_pct": 7.79
+      }
+    }
+  },
+  "ci_shrink": {
+    "raw_64": [
+      164.403,
+      161.661,
+      160.702,
+      157.709,
+      170.256,
+      145.584,
+      146.948,
+      156.499,
+      136.582,
+      155.53,
+      187.377,
+      155.237,
+      172.509,
+      160.5,
+      119.345,
+      177.867,
+      166.63,
+      159.204,
+      157.613,
+      186.242,
+      166.506,
+      148.104,
+      169.144,
+      144.105,
+      186.242,
+      158.419,
+      166.551,
+      140.546,
+      150.165,
+      169.418,
+      176.583,
+      142.22,
+      123.584,
+      178.381,
+      150.373,
+      143.412,
+      148.591,
+      161.892,
+      165.774,
+      151.516,
+      149.965,
+      157.817,
+      155.09,
+      163.423,
+      158.289,
+      148.858,
+      158.075,
+      184.687,
+      155.604,
+      151.275,
+      171.469,
+      162.15,
+      142.849,
+      135.757,
+      174.477,
+      156.888,
+      163.334,
+      145.017,
+      199.471,
+      168.572,
+      145.035,
+      158.534,
+      148.762,
+      143.445
+    ],
+    "population_mean": 158.418,
+    "population_cv_pct": 9.4,
+    "method": "从 64 次重复里随机抽 n 次（500 次重抽）取平均半宽，消掉单次实现的抽样噪声",
+    "n2": {
+      "mean_half_width": 96.501,
+      "mean_rel_half_width_pct": 60.92
+    },
+    "n4": {
+      "mean_half_width": 21.62,
+      "mean_rel_half_width_pct": 13.65
+    },
+    "n6": {
+      "mean_half_width": 14.942,
+      "mean_rel_half_width_pct": 9.43
+    },
+    "n8": {
+      "mean_half_width": 12.022,
+      "mean_rel_half_width_pct": 7.59
+    },
+    "n12": {
+      "mean_half_width": 9.15,
+      "mean_rel_half_width_pct": 5.78
+    },
+    "n16": {
+      "mean_half_width": 7.907,
+      "mean_rel_half_width_pct": 4.99
+    },
+    "n32": {
+      "mean_half_width": 5.337,
+      "mean_rel_half_width_pct": 3.37
+    }
+  },
+  "crn": {
+    "arm_a_values": [
+      164.403,
+      161.661,
+      160.702,
+      157.709,
+      170.256,
+      145.584,
+      146.948,
+      156.499
+    ],
+    "arm_b_values_crn": [
+      176.904,
+      175.213,
+      164.072,
+      168.015,
+      178.065,
+      161.994,
+      160.373,
+      164.252
+    ],
+    "arm_b_values_independent": [
+      182.489,
+      193.631,
+      155.97,
+      158.282,
+      163.709,
+      180.477,
+      168.453,
+      180.472
+    ],
+    "crn": {
+      "effect": -10.6406,
+      "ci95": [
+        -14.1353,
+        -7.146
+      ],
+      "half_width": 3.4946,
+      "verdict": "significant",
+      "p": 0.00781,
+      "std_diff": 4.1801
+    },
+    "independent": {
+      "effect": -14.9653,
+      "ci95": [
+        -28.658,
+        -1.2725
+      ],
+      "half_width": 13.6928,
+      "verdict": "inconclusive",
+      "p": 0.0781,
+      "std_diff": 16.3785
+    },
+    "ci_ratio_independent_over_crn": 3.918,
+    "verdict_text_crn": "pf_window=100 相对 pf_window=1000：cell_experienced_mbps 157.970 vs 168.611 Mbps，差值 -10.641（-6.3%），95% CI [-14.135, -7.146]，n_rep=8，Wilcoxon 符号秩检验 p=0.00781。**效应大于置信区间半宽 3.495，结论成立。**",
+    "verdict_text_independent": "pf_window=100 相对 pf_window=1000：cell_experienced_mbps 157.970 vs 172.936 Mbps，点估计差 -14.965（-8.7%），但 **Wilcoxon p=0.0781 ≥ 0.05**。**不能下结论，也不要报这个百分比**——n_rep=8 的实验分辨不出这么小的差异。要让这个效应站住至少需要 10 次重复（α=0.05，功效 80%）。"
+  },
+  "variance_decomposition_large_n": {
+    "note": "master_seed_32：每次重建链路表（邻区负载抖动重抽）+ 换全部系统级流；replication_64：表固定，只换 traffic/harq/scheduler 流。cv_pct_ci95 是变异系数自身的 95% 区间（χ² ）——n=8 时它宽到 0.66x~2.04x，**光看 n=8 的 CoV 分不出两者差异**，所以这里加到 32/64。",
+    "master_seed_32": {
+      "cell_experienced_mbps": {
+        "n": 32,
+        "mean": 157.477,
+        "cv_pct": 5.93,
+        "cv_pct_ci95": [
+          4.75,
+          7.88
+        ]
+      },
+      "ue_experienced_p5_mbps": {
+        "n": 32,
+        "mean": 54.062,
+        "cv_pct": 18.93,
+        "cv_pct_ci95": [
+          15.18,
+          25.17
+        ]
+      },
+      "avg_mcs": {
+        "n": 32,
+        "mean": 7.03,
+        "cv_pct": 10.46,
+        "cv_pct_ci95": [
+          8.38,
+          13.9
+        ]
+      },
+      "avg_rank": {
+        "n": 32,
+        "mean": 1.823,
+        "cv_pct": 2.51,
+        "cv_pct_ci95": [
+          2.01,
+          3.34
+        ]
+      },
+      "bler_first_tx": {
+        "n": 32,
+        "mean": 0.299,
+        "cv_pct": 10.59,
+        "cv_pct_ci95": [
+          8.49,
+          14.08
+        ]
+      }
+    },
+    "replication_64": {
+      "cell_experienced_mbps": {
+        "n": 64,
+        "mean": 158.418,
+        "cv_pct": 9.4,
+        "cv_pct_ci95": [
+          8.0,
+          11.38
+        ]
+      },
+      "ue_experienced_p5_mbps": {
+        "n": 64,
+        "mean": 54.035,
+        "cv_pct": 18.62,
+        "cv_pct_ci95": [
+          15.86,
+          22.55
+        ]
+      },
+      "avg_mcs": {
+        "n": 64,
+        "mean": 6.998,
+        "cv_pct": 8.14,
+        "cv_pct_ci95": [
+          6.93,
+          9.86
+        ]
+      },
+      "avg_rank": {
+        "n": 64,
+        "mean": 1.829,
+        "cv_pct": 2.86,
+        "cv_pct_ci95": [
+          2.44,
+          3.46
+        ]
+      },
+      "bler_first_tx": {
+        "n": 64,
+        "mean": 0.298,
+        "cv_pct": 8.84,
+        "cv_pct_ci95": [
+          7.53,
+          10.71
+        ]
+      }
+    }
+  },
+  "_about": "系统级随机数体系的实测记录。生成脚本见提交说明；数据集 ds_6e9715bc（UMa_NLOS, 10 UE / 80 样本 / 8 时隙, 3 km/h, 272 RB），ftp3 2 文件/秒 0.5 MB, 5 s, 邻区 PRB 利用率 0.3±5%, CSI 老化开, SVD 权。"
+}

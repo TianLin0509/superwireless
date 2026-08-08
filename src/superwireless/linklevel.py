@@ -22,7 +22,9 @@ import numpy as np
 _EPS = 1e-30
 
 PrecoderMethod = Literal["svd", "svd_wideband", "dft", "type1", "mrt", "identity"]
-ReceiverType = Literal["mmse", "mrc", "zf"]
+ReceiverType = Literal["mmse", "mrc", "zf", "irc"]
+InterferenceModel = Literal["isotropic", "precoded"]
+RuuSource = Literal["true", "sample"]
 
 
 # ---------------------------------------------------------------------------
@@ -160,10 +162,16 @@ class LinkPerformance:
     rank: int
     method: str
     receiver: str
+    precoder_indices: list[int] | None
     capacity_bound: float  # 同信道的容量上界，用于看离天花板多远
     sinr_per_rb_db: np.ndarray  # [RB, rank] 逐 RB 逐层
     noise_power: float
     interference_power: float
+    # IRC 能零陷几个干扰，取决于 R_uu 的有效秩——它必须跟着结果一起走，
+    # 否则"IRC 涨了 2.4 bit/s/Hz"这个数没法判断可不可信。
+    interference_rank: float | None = None
+    interference_model: str | None = None
+    r_uu_source: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -173,12 +181,17 @@ class LinkPerformance:
             "rank": self.rank,
             "method": self.method,
             "receiver": self.receiver,
+            "precoder_indices": self.precoder_indices,
             "capacity_bound": round(float(self.capacity_bound), 4),
             "efficiency_vs_bound": round(
                 float(self.spectral_efficiency / max(self.capacity_bound, _EPS)), 3
             ),
             "noise_power": float(self.noise_power),
             "interference_power": float(self.interference_power),
+            "interference_rank": (None if self.interference_rank is None
+                                  else round(float(self.interference_rank), 2)),
+            "interference_model": self.interference_model,
+            "r_uu_source": self.r_uu_source,
         }
 
 
@@ -212,9 +225,23 @@ def post_equalizer_sinr(
       迫零，完全消除层间干扰但放大噪声。
     * **MRC**：逐层最大比合并，**不消除层间干扰**，多层时会明显偏低——
       单层传输时才等价于最优。
+    * **IRC**：与 MMSE 同一个公式，区别**全在 ``R_n`` 怎么给**——见下。
 
     ``interference_cov`` 给定时（``[UE_ant, UE_ant]`` 或 ``[RB, UE_ant, UE_ant]``），
     干扰会计入 ``R_n``，得到的是真正的 SINR 而非 SNR。
+
+    MMSE 与 IRC 的分工
+    ------------------
+    **公式相同，喂进去的 ``R_n`` 不同，这才是这两个词的全部区别。**
+
+    * ``receiver="mmse"``：把干扰当**白噪声**——只取干扰总功率摊到各接收天线，
+      ``R_n = (N0 + I_tot/N_rx)·I``。这是业界默认的对照基线。
+    * ``receiver="irc"``：用干扰的**完整空间协方差**（有色、通常低秩），
+      接收机据此在干扰来向上打零陷。
+
+    所以 IRC 相对 MMSE 的增益完全来自 ``R_uu`` 的**非白性**。
+    如果传进来的 ``interference_cov`` 本身就接近单位阵，两者必然重合——
+    这不是实现错了，是干扰真的白。
     """
     h_eff = np.asarray(h_eff)
     if h_eff.ndim == 4:
@@ -228,12 +255,20 @@ def post_equalizer_sinr(
         r_n = np.eye(ue, dtype=np.complex128) * noise_power
         if interference_cov is not None:
             ic = np.asarray(interference_cov)
-            r_n = r_n + (ic[f] if ic.ndim == 3 else ic)
+            r_uu = ic[f] if ic.ndim == 3 else ic
+            if receiver == "irc":
+                r_n = r_n + r_uu            # 保留空间结构，才能打零陷
+            else:
+                # **非 IRC 的接收机把干扰当白噪声。** 只取总功率摊到各天线，
+                # 丢掉方向信息——这正是 IRC 要赢的那个基线。
+                r_n = r_n + np.eye(ue, dtype=np.complex128) * (
+                    float(np.real(np.trace(r_uu))) / max(ue, 1)
+                )
 
         r_inv = np.linalg.pinv(r_n)
         a = g.conj().T @ r_inv @ g  # [rank, rank]
 
-        if receiver == "mmse":
+        if receiver in ("mmse", "irc"):
             m = np.eye(rank, dtype=np.complex128) + p_per_layer * a
             m_inv = np.linalg.pinv(m)
             diag = np.real(np.diag(m_inv))
@@ -256,6 +291,118 @@ def post_equalizer_sinr(
         else:
             raise ValueError(f"未知接收机 {receiver!r}")
     return out
+
+
+def interference_covariance(
+    h_interferers: np.ndarray,
+    *,
+    model: InterferenceModel = "precoded",
+    r_uu_source: RuuSource = "true",
+    r_uu_samples: int = 8,
+    diagonal_loading: float = 0.01,
+    seed: int | None = 0,
+) -> np.ndarray:
+    """干扰在终端侧的空间协方差 ``R_uu``，形状 ``[RB, UE_ant, UE_ant]``。
+
+    **这个函数决定 IRC 有没有东西可赢。** IRC 的全部增益来自 ``R_uu`` 的非白性，
+    所以怎么建它比接收机公式本身重要得多。
+
+    ``model`` —— 干扰小区在发什么
+    ------------------------------
+    * ``"precoded"``（默认）：干扰小区**朝它自己的用户打波束**，
+      到达我们这里的是 ``H_k w_k``，空间上有色、秩等于干扰小区的流数。
+      这是真实系统的样子，也是 IRC 之所以有效的物理前提。
+      ``w_k`` 取该干扰信道的主奇异向量（等价于"邻区在好好服务它自己的用户"）。
+    * ``"isotropic"``：干扰小区**各向同性**发射，``R_uu = (1/N_bs)·Σ H_k^H H_k``。
+
+    两者差别不是细节。各向同性会把 ``R_uu`` 洗白、把秩抬到满，
+    IRC 相对 MMSE 的增益随之**系统性偏小**——看起来像"IRC 没什么用"，
+    其实是干扰建模把它能利用的结构抹掉了。
+
+    ``r_uu_source`` —— 接收机拿到的是真值还是估计
+    ---------------------------------------------
+    * ``"true"``：用真实协方差。**这是上界，不是可实现性能。**
+    * ``"sample"``：用 ``r_uu_samples`` 个快照的样本协方差 + 对角加载
+      ``diagonal_loading``（相对于迹）。真实接收机只能这么干，
+      样本数少于天线数时样本协方差是奇异的，必须加载。
+
+    默认给 ``"true"`` 是因为它可复现、适合做机理研究；
+    **报 IRC 增益时必须说清用的哪个**，否则数字不可比。
+    """
+    hi = np.asarray(h_interferers)
+    if hi.ndim != 5:
+        raise ValueError(f"h_interferers 需要 [K-1, T, RB, BS, UE]，实得 {hi.shape}")
+    n_k, n_t, rb, _bs, ue = hi.shape
+    rng = np.random.default_rng(seed)
+
+    def _cov_from(hk_f: np.ndarray) -> np.ndarray:
+        """单个干扰小区在单个 RB 上的贡献，``hk_f`` 是 ``[BS, UE]``。"""
+        if model == "isotropic":
+            return hk_f.conj().T @ hk_f / max(hk_f.shape[0], 1)
+        # precoded：邻区朝它自己的用户打主特征波束
+        u, s, _vh = np.linalg.svd(hk_f, full_matrices=False)
+        w = u[:, :1]                       # [BS, 1] 主发射方向，单位范数
+        y = (w.conj().T @ hk_f).ravel()    # [UE] 到达本终端的干扰空间签名
+        # 功率归一到与各向同性同一口径：迹相同，只是分布不同。
+        # 不归一的话 precoded 会同时改变干扰"强度"和"方向"，
+        # 两个因素混在一起，IRC 增益就说不清是哪来的。
+        iso_tr = float(np.real(np.trace(hk_f.conj().T @ hk_f))) / max(hk_f.shape[0], 1)
+        cov = np.outer(y.conj(), y)
+        tr = float(np.real(np.trace(cov)))
+        return cov * (iso_tr / tr) if tr > _EPS else cov
+
+    cov = np.zeros((rb, ue, ue), dtype=np.complex128)
+    if r_uu_source == "true":
+        for k in range(n_k):
+            hk = hi[k].mean(axis=0)        # [RB, BS, UE]
+            for f in range(rb):
+                cov[f] += _cov_from(hk[f])
+        return cov
+
+    # sample：把 T 个时隙当快照；不够就在真值上加抖动补足，
+    # 保证"样本数不足 -> 协方差奇异 -> 必须对角加载"这条物理如实体现。
+    n_s = max(int(r_uu_samples), 1)
+    for k in range(n_k):
+        for f in range(rb):
+            acc = np.zeros((ue, ue), dtype=np.complex128)
+            for s_i in range(n_s):
+                hk_f = hi[k, s_i % n_t, f]
+                if s_i >= n_t:             # 快照不够，用独立小抖动代替新时刻
+                    hk_f = hk_f + (rng.standard_normal(hk_f.shape)
+                                   + 1j * rng.standard_normal(hk_f.shape)
+                                   ) * 0.05 * float(np.std(np.abs(hk_f)))
+                acc += _cov_from(hk_f)
+            cov[f] += acc / n_s
+    load = float(diagonal_loading)
+    if load > 0:
+        for f in range(rb):
+            cov[f] += np.eye(ue) * (float(np.real(np.trace(cov[f]))) / max(ue, 1) * load)
+    return cov
+
+
+def effective_rank(cov: np.ndarray, threshold: float = 0.01) -> float:
+    """``R_uu`` 的有效秩（特征值大于最大值 ``threshold`` 倍的个数，各 RB 平均）。
+
+    **IRC 的可零陷干扰数上限就是它。** ``N_rx`` 根接收天线最多零陷
+    ``N_rx - 1`` 个独立干扰方向；有效秩逼近 ``N_rx`` 时 IRC 相对 MMSE
+    的增益必然趋近 0——那时干扰在空间上已经接近白的，没有结构可利用。
+
+    实测提醒：ChannelHub 的**单个干扰小区信道是秩 1 的**
+    （σ₂/σ₁ ≈ 4e-8，96 个抽样全部如此），而服务小区是满秩。
+    这让 IRC 处在最有利的工况——3 个干扰小区、4 根接收天线，
+    刚好能全部零陷。**真实干扰不会这么干净，所以这里的 IRC 增益偏乐观。**
+    """
+    c = np.asarray(cov)
+    if c.ndim == 2:
+        c = c[None]
+    ranks = []
+    for f in range(c.shape[0]):
+        ev = np.linalg.eigvalsh(c[f]).real
+        top = float(ev.max())
+        if top <= _EPS:
+            continue
+        ranks.append(int(np.sum(ev > top * threshold)))
+    return float(np.mean(ranks)) if ranks else 0.0
 
 
 def capacity_upper_bound(h: np.ndarray, noise_power: float) -> float:
@@ -287,10 +434,16 @@ def link_performance(
     method: PrecoderMethod = "svd",
     receiver: ReceiverType = "mmse",
     max_rank: int = 4,
+    rank_threshold: float = 0.1,
     h_for_precoding: np.ndarray | None = None,
     h_interferers: np.ndarray | None = None,
     n_h: int | None = None,
     n_v: int | None = None,
+    interference_model: InterferenceModel = "precoded",
+    r_uu_source: RuuSource = "true",
+    r_uu_samples: int = 8,
+    diagonal_loading: float = 0.01,
+    seed: int | None = 0,
 ) -> LinkPerformance:
     """一站式：预编码 → 有效信道 → 逐层 SINR → 谱效。
 
@@ -303,6 +456,10 @@ def link_performance(
     snr_db / noise_power : 二选一。给 snr_db 时按信道平均增益反推噪声。
     h_interferers : ``[K-1, T, RB, BS_ant, UE_ant]``，给定则计入干扰，
         得到真正的 SINR。
+    receiver : ``mmse`` 把干扰当白噪声（基线），``irc`` 用完整空间协方差打零陷。
+        两者公式相同，差别只在 ``R_n``——见 ``post_equalizer_sinr``。
+    interference_model / r_uu_source : 见 ``interference_covariance``。
+        **报 IRC 增益时这两个必须一起报**，换一个设置数字就不可比。
 
     谱效口径：``SE = mean_rb Σ_layer log2(1 + SINR[rb, layer])``。
     """
@@ -313,25 +470,26 @@ def link_performance(
         noise_power = _noise_from_snr(h, snr_db)
 
     h_p = np.asarray(h_for_precoding) if h_for_precoding is not None else h
-    prec = compute_precoder(h_p, method=method, max_rank=max_rank, n_h=n_h, n_v=n_v)
+    prec = compute_precoder(
+        h_p, method=method, max_rank=max_rank, rank_threshold=rank_threshold,
+        n_h=n_h, n_v=n_v,
+    )
     h_eff = effective_channel(h, prec.w)
 
     intf_cov = None
     intf_power = 0.0
+    intf_rank: float | None = None
     if h_interferers is not None:
-        hi = np.asarray(h_interferers)
-        # 干扰在终端侧的空间协方差：对干扰小区、时间、发射天线求平均
-        # [K-1, T, RB, BS, UE] -> [RB, UE, UE]
-        rb = hi.shape[2]
-        ue = hi.shape[4]
-        cov = np.zeros((rb, ue, ue), dtype=np.complex128)
-        for k in range(hi.shape[0]):
-            hk = hi[k].mean(axis=0)  # [RB, BS, UE]
-            for f in range(rb):
-                g = hk[f]  # [BS, UE]
-                cov[f] += g.conj().T @ g / max(g.shape[0], 1)
-        intf_cov = cov
-        intf_power = float(np.mean(np.real(np.trace(cov, axis1=1, axis2=2))) / max(ue, 1))
+        intf_cov = interference_covariance(
+            h_interferers, model=interference_model,
+            r_uu_source=r_uu_source, r_uu_samples=r_uu_samples,
+            diagonal_loading=diagonal_loading, seed=seed,
+        )
+        ue = intf_cov.shape[-1]
+        intf_power = float(
+            np.mean(np.real(np.trace(intf_cov, axis1=1, axis2=2))) / max(ue, 1)
+        )
+        intf_rank = effective_rank(intf_cov)
 
     sinr_lin = post_equalizer_sinr(
         h_eff, noise_power, receiver=receiver, interference_cov=intf_cov
@@ -346,10 +504,14 @@ def link_performance(
         rank=prec.rank,
         method=prec.method,
         receiver=receiver,
+        precoder_indices=prec.indices,
         capacity_bound=capacity_upper_bound(h, noise_power),
         sinr_per_rb_db=10.0 * np.log10(np.maximum(sinr_lin, _EPS)),
         noise_power=float(noise_power),
         interference_power=intf_power,
+        interference_rank=intf_rank,
+        interference_model=(interference_model if h_interferers is not None else None),
+        r_uu_source=(r_uu_source if h_interferers is not None else None),
     )
 
 

@@ -9,6 +9,100 @@
 #            填进来的必须是真跑过的数，不是设计意图——写错了比不写更糟。
 #   verify   怎么复核这个场景确实是它声称的样子
 
+# ===========================================================================
+# 本地默认配置（真实 AAU + n41 载波）
+# ===========================================================================
+# 这一组是**默认口径**：64T = 8H x 4V x 2pol 的 RF 端口，1 驱 3 驱动 192 个
+# 物理阵子，水平 0.5λ、垂直 0.67λ（RF 端口垂直相位中心 2.01λ，有栅瓣）。
+# 载波 2.6 GHz(n41) / 30 kHz / 100 MHz / 272 RB（17 RBG x 16 RB），
+# 终端默认 4R 收、下行。仿真粒度到 RB 为止。
+#
+# 阵列模型由 hardware.apply_array_defaults 自动挂上（面板是 8x4x2 就切），
+# 不需要在这里重复写 bs_antenna。**几何 SINR / IoT 不受阵列模型影响**，
+# 它只改信道矩阵，因而只影响预编码/谱效/吞吐/CSI 这一类量。
+
+company_64t4r:
+  group: 本地默认
+  label: 本地默认 · 单小区 64T4R · 2.6 GHz 272 RB
+  summary: 默认信道配置的单小区版本。64T(8x4x2 RF / 1驱3 / 192 阵子 /
+    0.5λ 水平 0.67λ 垂直) + 4R 下行，n41 2.6 GHz、30 kHz、100 MHz、272 RB。
+    算法验证优先用这个，除非课题本身要求别的频点或阵列。
+  typical_for: [CSI 压缩, 预编码, 码本设计, 信道估计, 链路自适应]
+  verify: summary.antenna_model 应为 effective_subarray、physical_elements 192
+  config:
+    source: internal_sim
+    scenario: UMa_NLOS
+    channel_model: CDL-C
+    num_sites: 1
+    sectors_per_site: 1
+    num_ues: 10
+    num_bs_tx_ant: 64
+    num_bs_rx_ant: 64
+    num_ue_tx_ant: 2
+    num_ue_rx_ant: 4
+    bandwidth_hz: 100000000.0
+    subcarrier_spacing: 30000
+    num_rb: 272
+    carrier_freq_hz: 2600000000.0
+    link: DL
+    channel_est_mode: ls_linear
+
+company_64t4r_multicell:
+  group: 本地默认
+  label: 本地默认 · 7 站 21 小区 · 2.6 GHz 272 RB
+  summary: 默认配置的多小区版本，干扰环境完整。做干扰、调度、链路自适应类
+    课题时的默认起点。
+  typical_for: [干扰协调, 调度, 链路自适应, 系统级评估]
+  verify: sw_probe_scenario 复核 IoT；summary.antenna_model 应为 effective_subarray
+  config:
+    source: internal_sim
+    scenario: UMa_NLOS
+    channel_model: CDL-C
+    num_sites: 7
+    sectors_per_site: 3
+    isd_m: 500.0
+    num_ues: 21
+    num_interfering_ues: 10
+    num_bs_tx_ant: 64
+    num_bs_rx_ant: 64
+    num_ue_tx_ant: 2
+    num_ue_rx_ant: 4
+    bandwidth_hz: 100000000.0
+    subcarrier_spacing: 30000
+    num_rb: 272
+    carrier_freq_hz: 2600000000.0
+    link: DL
+    channel_est_mode: ls_linear
+
+company_64t4r_legacy_array:
+  group: 本地默认
+  label: 对照 · 同配置但用 legacy 独立阵元模型
+  summary: 与 company_64t4r 只差阵列模型——这个用 ChannelHub 默认的
+    legacy_64（64 个独立阵元、一律 0.5λ、没有 1 驱 3）。用来量化
+    "阵列模型建错了会差多少"。实测两者 h_true 相对差 4.03，完全是另一个信道。
+  typical_for: [阵列模型消融, 口径对照]
+  verify: 两组的几何 SINR/IoT 应逐位相同，差别全在信道矩阵与谱效/吞吐上
+  caveat: >-
+    **这不是真实硬件**，只作对照。真实 AAU 是 1 驱 3、192 阵子、垂直 0.67λ。
+  config:
+    source: internal_sim
+    scenario: UMa_NLOS
+    channel_model: CDL-C
+    antenna_model_mode: legacy_64
+    num_sites: 1
+    sectors_per_site: 1
+    num_ues: 10
+    num_bs_tx_ant: 64
+    num_bs_rx_ant: 64
+    num_ue_tx_ant: 2
+    num_ue_rx_ant: 4
+    bandwidth_hz: 100000000.0
+    subcarrier_spacing: 30000
+    num_rb: 272
+    carrier_freq_hz: 2600000000.0
+    link: DL
+    channel_est_mode: ls_linear
+
 single_cell_64t4r:
   group: 基线
   label: 单小区 · 64T4R 宏站

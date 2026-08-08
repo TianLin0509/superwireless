@@ -8,12 +8,14 @@
 from __future__ import annotations
 
 import functools
+import inspect
 import math
 import os
 import sys
 from typing import Any
 
 import anyio
+import numpy as np
 
 # mcp 1.x 与 2.x 的服务端类改了名字和位置：
 #   1.x  mcp.server.fastmcp.FastMCP
@@ -42,6 +44,68 @@ mcp = _ServerClass("superwireless")
 _DEBUG = bool(os.environ.get("SUPERWIRELESS_DEBUG"))
 
 
+# ---------------------------------------------------------------------------
+# 说明书回传的"送达感知"
+# ---------------------------------------------------------------------------
+# **MCP 是纯拉取的：服务端没法往对话里推消息。** 用户在说明书页面上点了
+# 「应用到仿真」，如果 agent 此刻没有正好阻塞在 sw_await_config 上，
+# 那份改动就只是静静躺在收件箱里——CLI 上不会有任何动静，用户会以为没生效。
+#
+# 唯一能用的通道是**工具返回值**。所以把"有未处理的回传"挂到每一个工具的
+# 返回上：agent 下一次做任何事，都会在结果里看到它，然后立刻告诉用户。
+# 这不是推送，但把"用户感知不到"的窗口从"直到 agent 恰好来等"
+# 压到了"直到 agent 下一次调用任何工具"。
+def _with_pending(result: Any) -> Any:
+    """给返回值挂上未处理的配置回传通知。非 dict 的返回原样放行。"""
+    if not isinstance(result, dict):
+        return result
+    try:
+        from . import bridge as _br  # noqa: PLC0415
+
+        n = _br.pending_count()
+        if n:
+            result = dict(result)
+            result["pending_config_changes"] = {
+                "count": n,
+                "notice": f"用户在说明书页面上提交了 {n} 项配置改动，还没处理。",
+                "action": "**先停下手头的事**，调 sw_await_config(timeout_s=1) 取回来，"
+                          "向用户复述改了什么，再问是否照做。他点了按钮却没等到回应，"
+                          "多半正以为没生效。",
+            }
+    except Exception as exc:  # noqa: BLE001
+        _dbg(f"pending 检查失败（不影响工具本身）：{exc}")
+    return result
+
+
+def tool(*d_args: Any, **d_kwargs: Any):
+    """``@tool()`` 的包装，统一挂上回传通知。
+
+    **必须分同步/异步两条路。** 有些工具（``sw_generate``）是 ``async def``，
+    用同步包装器去调它只会拿到一个从没被 await 的 coroutine 对象，
+    然后 ``_with_pending`` 看它不是 dict 就原样放行——整个返回值静默变成垃圾。
+    实测症状是调用方拿到的结果里没有 ``summary`` 键，报 KeyError，
+    完全看不出跟装饰器有关。
+    """
+    inner = mcp.tool(*d_args, **d_kwargs)
+
+    def deco(fn):
+        if inspect.iscoroutinefunction(fn):
+
+            @functools.wraps(fn)
+            async def awrapper(*args, **kwargs):
+                return _with_pending(await fn(*args, **kwargs))
+
+            return inner(awrapper)
+
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            return _with_pending(fn(*args, **kwargs))
+
+        return inner(wrapper)
+
+    return deco
+
+
 def _dbg(msg: str) -> None:
     """调试打点。只能写 stderr —— stdio 传输下 stdout 是 JSON-RPC 通道。"""
     if _DEBUG:
@@ -67,7 +131,7 @@ def _jsonable(obj: Any) -> Any:
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@tool()
 def sw_capabilities() -> dict[str, Any]:
     """查看本机可用的仿真引擎，以及不可用的引擎缺什么。
 
@@ -78,10 +142,14 @@ def sw_capabilities() -> dict[str, Any]:
         models = ch.list_channel_models()
     except Exception as exc:  # noqa: BLE001
         models = {"error": str(exc)}
+    from . import hardware as hw
+
     return {
         "channelhub_root": str(ch.channelhub_root()),
         "engines": caps,
         "channel_models": models,
+        # 本地默认硬件与载波。**面板是 8x4x2 时自动生效**，不需要调用方写。
+        "default_hardware": hw.describe(),
         "note": (
             "CDL 系列含每条径的角度（AoD/AoA/ZoD/ZoA），TDL 系列没有。"
             "凡是依赖角度的课题（波束管理、定位）必须用 CDL。"
@@ -89,7 +157,58 @@ def sw_capabilities() -> dict[str, Any]:
     }
 
 
-@mcp.tool()
+@tool()
+def sw_system_scene(name: str | None = None) -> dict[str, Any]:
+    """**系统级场景预设：把一整套仿真条件打包成一个名字。**
+
+    不给 ``name`` 就列全部；给了就返回这个场景该怎么跑
+    （``generate`` 段喂 ``sw_generate``、``system`` 段喂 ``sw_system_sim``）。
+
+    信道侧有 20+ 个预设，一句 ``company_64t4r_multicell`` 就够了；系统级却要
+    手工填 ``duration_s`` / ``traffic_model`` / ``arrival_rate_hz`` /
+    ``neighbor_prb_util`` / ``csi_aging`` / ``srs_period_ms`` 八九个参数。
+    **后果不只是麻烦——每次跑都在拍参数，不同次之间参数不一致，结果没法横向比。**
+
+    比"一组默认值"多两样东西：
+
+    * ``expect`` **实测锚点**。``measured: false`` 时**不许有数值**——
+      preset 里的 label 是设计意图，写着"高干扰"实际只有 2 dB 的事发生过。
+    * ``pair_with`` **受控对照**。除了 ``pair_varies`` 列出的那一项，
+      两个场景其余参数**逐字相同**，否则差值归因不到任何一项上。
+      同时差三四个参数的两个场景不是对照组，只是两个场景。
+
+    **成对场景要用公共随机数跑**（两臂同一批 replication 流），
+    实测 95% 区间能窄 3.92 倍。
+    """
+    from . import sysscenes as ss  # noqa: PLC0415
+
+    if name is None:
+        bad = ss.check_pairs()
+        return _jsonable({
+            "scenes": ss.list_system_presets(),
+            "pair_check": "全部成对场景都是受控对比" if not bad else bad,
+            "hint": ("挑一个名字再调一次拿到完整参数。"
+                     "**成对的那些要两个都跑**——很多系统级结论必须靠 A/B 才立得住，"
+                     "而且两臂必须用同一批随机流（CRN）。"),
+        })
+    try:
+        sc = ss.resolve(name)
+    except (KeyError, ValueError) as exc:
+        return {"error": str(exc)}
+    exp = sc.get("expect") or {}
+    return _jsonable({
+        "name": name, "label": sc.get("label"), "summary": sc.get("summary"),
+        "answers": sc.get("answers"),
+        "generate": sc.generate_kwargs, "system": sc.sim_kwargs,
+        "expect": exp, "pair_with": sc.get("pair_with"),
+        "pair_varies": sc.get("pair_varies"),
+        "hint": (("**这个场景的 expect 还没实测**，别把 summary 里的定性说法"
+                  "当成实测值转述给用户。") if not exp.get("measured") else
+                 "expect 是实测锚点，跑出来差太多就说明配置没对上，要停下来查。"),
+    })
+
+
+@tool()
 def sw_list_presets(group: str | None = None) -> dict[str, Any]:
     """列出场景预设。预设只提供场景骨架，具体参数由 sw_plan 协商决定。
 
@@ -120,7 +239,7 @@ def sw_list_presets(group: str | None = None) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@tool()
 def sw_plan(
     intent: str,
     preset: str | None = None,
@@ -158,7 +277,7 @@ def sw_plan(
     return _jsonable(proposal)
 
 
-@mcp.tool()
+@tool()
 def sw_revise(
     draft_id: str,
     overrides: dict[str, Any] | None = None,
@@ -183,7 +302,7 @@ def sw_revise(
     return _jsonable(proposal)
 
 
-@mcp.tool()
+@tool()
 def sw_list_scenes() -> dict[str, Any]:
     """列出射线追踪可用的场景（真实建筑几何）。
 
@@ -214,7 +333,7 @@ def sw_list_scenes() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@tool()
 async def sw_generate(
     draft_id: str | None = None,
     intent: str | None = None,
@@ -357,7 +476,7 @@ def _generate_sync(
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@tool()
 def sw_deliver(dataset_id: str, want: str | None = None) -> dict[str, Any]:
     """按需生成取货代码——返回可直接运行的 Python，不是数据。
 
@@ -369,7 +488,7 @@ def sw_deliver(dataset_id: str, want: str | None = None) -> dict[str, Any]:
     return _jsonable(dlv.build_code(dataset_id, want))
 
 
-@mcp.tool()
+@tool()
 def sw_describe_dataset(dataset_id: str) -> dict[str, Any]:
     """查看已生成数据集的维度、统计分布和可用字段。"""
     s = gen.load_summary(dataset_id)
@@ -393,13 +512,13 @@ def sw_describe_dataset(dataset_id: str) -> dict[str, Any]:
     )
 
 
-@mcp.tool()
+@tool()
 def sw_list_datasets() -> dict[str, Any]:
     """列出本机已生成的数据集。"""
     return _jsonable({"datasets": gen.list_datasets()})
 
 
-@mcp.tool()
+@tool()
 async def sw_validate(dataset_id: str) -> dict[str, Any]:
     """可信度体检：这批信道能不能拿来下结论。
 
@@ -425,7 +544,7 @@ def _validate_sync(dataset_id: str) -> dict[str, Any]:
     return _jsonable(out)
 
 
-@mcp.tool()
+@tool()
 async def sw_link_performance(
     dataset_id: str,
     snr_db: float | None = None,
@@ -500,7 +619,7 @@ def _link_perf_sync(
     )
 
 
-@mcp.tool()
+@tool()
 async def sw_calibrate(dataset_id: str) -> dict[str, Any]:
     """按 3GPP TR 38.901 §7.8 的口径算校准量。
 
@@ -531,7 +650,7 @@ def _calibrate_sync(dataset_id: str) -> dict[str, Any]:
     return _jsonable(out)
 
 
-@mcp.tool()
+@tool()
 async def sw_gate(
     dataset_id: str,
     stage: str = "channel",
@@ -562,7 +681,7 @@ def _gate_sync(dataset_id: str) -> dict[str, Any]:
     return _jsonable(out)
 
 
-@mcp.tool()
+@tool()
 async def sw_compare_arms(
     dataset_id: str,
     method_a: str,
@@ -619,7 +738,7 @@ def _compare_arms_sync(
     return _jsonable(out)
 
 
-@mcp.tool()
+@tool()
 def sw_sample_size(
     std_diff: float | None = None,
     expected_effect: float | None = None,
@@ -650,7 +769,7 @@ def sw_sample_size(
     )
 
 
-@mcp.tool()
+@tool()
 def sw_missing_slots(
     answered_design: list[str] | None = None,
     answered_params: list[str] | None = None,
@@ -684,7 +803,7 @@ def sw_missing_slots(
     )
 
 
-@mcp.tool()
+@tool()
 def sw_lock_analysis(
     primary_metric: str = "spectral_efficiency",
     baseline: str = "",
@@ -724,7 +843,7 @@ def sw_lock_analysis(
     return _jsonable(d)
 
 
-@mcp.tool()
+@tool()
 def sw_export_eval_template(
     dataset_id: str,
     metric: str = "spectral_efficiency",
@@ -748,7 +867,7 @@ def sw_export_eval_template(
     return _jsonable(rs.eval_template(dataset_id, metric=metric))
 
 
-@mcp.tool()
+@tool()
 async def sw_compare_results(
     result_id_a: str,
     result_id_b: str,
@@ -786,7 +905,7 @@ def _compare_results_sync(
     return _jsonable(out)
 
 
-@mcp.tool()
+@tool()
 def sw_list_results(dataset_id: str | None = None) -> dict[str, Any]:
     """列出已注册的外部算法结果。不给 dataset_id 就列全部。"""
     from . import analysis as an
@@ -800,7 +919,7 @@ def sw_list_results(dataset_id: str | None = None) -> dict[str, Any]:
     )
 
 
-@mcp.tool()
+@tool()
 async def sw_throughput(
     dataset_id: str,
     mcs_table: int = 1,
@@ -822,12 +941,14 @@ async def sw_throughput(
     边缘用户吞吐是 3GPP 评估里的公平性指标，比均值更能说明问题。
 
     `mcs_table`：1 = 最高 64QAM（38.214 Table 5.1.3.1-1），
-    2 = 含 256QAM（Table 5.1.3.1-2）。**MCS 分布里大量样本压在最高档时，
+    2 = 含 256QAM（Table 5.1.3.1-2），3 = 用户提供的 20B 256QAM MCS +
+    NewTx/ReTx 解调曲线。**MCS 分布里大量样本压在最高档时，
     说明限制来自 MCS 表而不是信道**，换表 2 通常能明显提升。
 
-    **BLER 是模型不是实测**：MCS/CQI/TBS 都按 38.214 精确算，QAM 约束容量
-    精确求积，但 BLER 用的是有限码长模型（没有 3GPP 参考曲线兜底）。
-    严格 BLER 结论请跑真正的链路级仿真。
+    表 1/2 的 BLER 是有限码长分析模型，不是实测。表 3 的 BLER 来自用户提供的
+    解调曲线，也不是 3GPP 标准曲线；源标签 Es/No 表示经典 MMSE 接收机 SINR。
+    表 3 的 HARQ 首传用 NewTx、后续用 ReTx 曲线；多次重传复用同一 ReTx 曲线。
+    表 3 没有 CQI 曲线，CQI 仍用 38.214 Table 2 + 分析 BLER，并在结果中标明来源。
     """
     return await anyio.to_thread.run_sync(
         functools.partial(
@@ -839,6 +960,7 @@ async def sw_throughput(
 
 def _throughput_sync(*, dataset_id: str, mcs_table: int, target_bler: float,
                      max_samples: int, method: str) -> dict[str, Any]:
+    from . import linkadapt as la
     from . import loader as ld
 
     ds = ld.load(dataset_id)
@@ -848,6 +970,7 @@ def _throughput_sync(*, dataset_id: str, mcs_table: int, target_bler: float,
     out = st.as_dict()
     out["dataset_id"] = dataset_id
     out["mcs_table"] = mcs_table
+    out["mcs_source"] = la.MCS_TABLE_SOURCES[mcs_table]
     out["text"] = st.text()
     top = max(st.mcs_distribution) if st.mcs_distribution else 0
     capped = st.mcs_distribution.get(top, 0) / max(st.n, 1)
@@ -859,38 +982,144 @@ def _throughput_sync(*, dataset_id: str, mcs_table: int, target_bler: float,
     return _jsonable(out)
 
 
-@mcp.tool()
+@tool()
 def sw_mcs_info(
     table: int = 1,
     show_bler_anchors: bool = False,
 ) -> dict[str, Any]:
-    """查 38.214 的 MCS / CQI 表，以及 BLER 模型各档的门限。
+    """查 MCS / CQI 表，以及分析模型或表驱动 BLER 的门限。
 
     `show_bler_anchors=true` 时给出各 MCS 达到 10% BLER 所需的有效 SINR，
     以及它距同频谱效率的香农极限有多远。**这是模型预测，摆出来供人工对照
     公开的 NR 链路级曲线**——常见量级是 MCS0 约 -5~-7 dB、MCS28 约 20~23 dB。
 
-    表格本身是逐字录入的标准值，`verify_tables` 用"SE == q_m·R/1024"这条
-    表内蕴关系做过自检。
+    `table=1/2` 是逐字录入的 38.214 标准值，BLER 是分析模型。
+    `table=3` 是用户提供的 20B 256QAM MCS 与 NewTx/ReTx 曲线：返回两套码率、
+    10% BLER 门限和数据哈希自检。它不是 3GPP 标准表；接收机为经典 MMSE，
+    源标签 Es/No 表示 SINR，其他链路维度暂不参数化。
     """
     from . import linkadapt as la
 
+    if table not in la.MCS_TABLES:
+        raise ValueError(f"table 应为 {sorted(la.MCS_TABLES)}，收到 {table}")
+
+    mcs_rows = (
+        la.bc.mcs_profile_rows() if table == 3
+        else [m.as_dict() for m in la.MCS_TABLES[table]]
+    )
     out: dict[str, Any] = {
-        "mcs_table": [m.as_dict() for m in la.MCS_TABLES[table]],
+        "mcs_table": mcs_rows,
         "cqi_table": [
             {"index": c.index, "modulation": la._MOD_NAME[c.q_m],
              "code_rate": round(c.r_1024 / 1024, 4), "se": c.se}
             for c in la.CQI_TABLES[min(table, 2)]
         ],
-        "verify": la.verify_tables(),
-        "source": "3GPP TS 38.214 V17.5.0 Table 5.1.3.1-1/-2、5.2.2.1-2/-3",
+        "verify": la.bc.verify_curves() if table == 3 else la.verify_tables(),
+        "source": la.MCS_TABLE_SOURCES[table],
+        "cqi_source": "3GPP TS 38.214 CQI Table 2" if table == 3 else "same table family",
     }
     if show_bler_anchors:
-        out["bler_anchors"] = la.DEFAULT_BLER.anchor_check(table=table)
+        out["bler_anchors"] = (
+            la.curve_anchor_check() if table == 3
+            else la.DEFAULT_BLER.anchor_check(table=table)
+        )
     return _jsonable(out)
 
 
-@mcp.tool()
+@tool()
+def sw_bler_curve(
+    mcs: int,
+    tx_mode: str = "newtx",
+    sinr_db_list: list[float] | None = None,
+    target_bler: float = 0.1,
+) -> dict[str, Any]:
+    """查用户提供的单档 BLER 曲线，并可在任意 SINR 点插值。
+
+    `mcs` 为 0..27；`tx_mode` 为 `newtx` 或 `retx`。默认返回完整原始点、码率、
+    10% BLER 门限和来源口径。传 `sinr_db_list` 时额外返回查询点的 BLER。
+
+    插值在 log10(BLER) 域线性完成；低于曲线范围钳到 1，高于范围钳到最后一个
+    实测点，绝不外推一条看似精确的尾巴。源脚本标签 Es/No 已确认表示 SINR，
+    接收机为经典 MMSE；返回值同时保留原始标签和物理口径。
+    """
+    from . import linkadapt as la
+
+    return _jsonable(la.bler_curve(
+        mcs=mcs, tx_mode=tx_mode, target_bler=target_bler,
+        sinr_db=sinr_db_list,
+    ))
+
+
+@tool()
+async def sw_tdd_mcs(
+    dataset_id: str,
+    cqi: int,
+    sample_index: int = 0,
+    olla_mcs_offset: float = 0.0,
+    target_bler: float = 0.1,
+    max_rank: int = 4,
+    use_estimated_csi: bool = True,
+    feedback_ack: bool | None = None,
+    olla_ack_step_mcs: float = 0.1,
+) -> dict[str, Any]:
+    """TDD 下按 CQI、SVD-vs-PMI BF Gain 和 OLLA 选择最终 MCS。
+
+    真实调用链是：CQI → 按频谱效率映射表 3 初始 MCS → 该 MCS 的 NewTx 目标
+    BLER SINR 门限 → 在同一信道/CSI/rank/功率/干扰/MMSE 接收机下逐 RB、逐流计算
+    ``SINR_SVD - SINR_PMI`` → 在 dB 域对全部 RB×流求算术平均 → 按表 3 重映射
+    MCS → 加连续的 ``olla_mcs_offset`` → ``floor`` → 钳位到 0..27。
+
+    `CQI=0` 表示 out-of-range，不调度。`feedback_ack` 可选：给出时按目标首传
+    BLER 更新下一时刻的 OLLA；10% 默认对应 ACK +0.1、NACK -0.9 MCS。当前时刻
+    使用传入的 OLLA，反馈只影响返回的 `olla_next_offset_mcs`。
+
+    返回每个中间量，包括初始 MCS/门限、逐流 PMI/SVD SINR、BF Gain、用户 SINR、
+    BF 后 MCS、OLLA 取整前后值和最终 BLER，便于 Agent 逐步审计。
+    """
+    return await anyio.to_thread.run_sync(
+        functools.partial(
+            _tdd_mcs_sync,
+            dataset_id=dataset_id,
+            cqi=cqi,
+            sample_index=sample_index,
+            olla_mcs_offset=olla_mcs_offset,
+            target_bler=target_bler,
+            max_rank=max_rank,
+            use_estimated_csi=use_estimated_csi,
+            feedback_ack=feedback_ack,
+            olla_ack_step_mcs=olla_ack_step_mcs,
+        )
+    )
+
+
+def _tdd_mcs_sync(
+    *,
+    dataset_id: str,
+    cqi: int,
+    sample_index: int,
+    olla_mcs_offset: float,
+    target_bler: float,
+    max_rank: int,
+    use_estimated_csi: bool,
+    feedback_ack: bool | None,
+    olla_ack_step_mcs: float,
+) -> dict[str, Any]:
+    from . import loader as ld
+
+    ds = ld.load(dataset_id)
+    return _jsonable(ds.tdd_mcs(
+        sample_index,
+        cqi_index=cqi,
+        olla_mcs_offset=olla_mcs_offset,
+        target_bler=target_bler,
+        max_rank=max_rank,
+        use_estimated_csi=use_estimated_csi,
+        feedback_ack=feedback_ack,
+        olla_ack_step_mcs=olla_ack_step_mcs,
+    ))
+
+
+@tool()
 async def sw_sweep_snr(
     dataset_id: str,
     snr_db_list: list[float] | None = None,
@@ -941,9 +1170,15 @@ def _sweep_sync(*, dataset_id: str, snr_db_list: list[float] | None,
             "cell_edge_mbps": round(st.cell_edge_mbps, 2),
             "mcs_median": int(np.median([r.mcs_index for r in res])),
             "mean_bler": round(st.mean_bler, 4),
+            "mean_retx_bler": (
+                None if st.mean_retx_bler is None else round(st.mean_retx_bler, 4)
+            ),
         })
     return _jsonable({
         "dataset_id": dataset_id, "n_samples": n, "mcs_table": mcs_table,
+        "mcs_source": la.MCS_TABLE_SOURCES[mcs_table],
+        "bler_source": st.bler_source,
+        "harq_model": st.harq_model,
         "curve": rows,
         "note": (
             "各点跑在同一批信道上，彼此配对，曲线不含信道抽样噪声。"
@@ -958,7 +1193,7 @@ def _sweep_sync(*, dataset_id: str, snr_db_list: list[float] | None,
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@tool()
 def sw_interference_report(dataset_id: str) -> dict[str, Any]:
     """一个数据集的干扰画像：业务域 IoT + 测量域导频 SIR。只读已落盘的标量。
 
@@ -980,7 +1215,7 @@ def sw_interference_report(dataset_id: str) -> dict[str, Any]:
     return _jsonable(itf.interference_report(dataset_id))
 
 
-@mcp.tool()
+@tool()
 def sw_iot_convert(
     iot_db: float | None = None,
     load: float | None = None,
@@ -1021,7 +1256,7 @@ def sw_iot_convert(
     return _jsonable(out)
 
 
-@mcp.tool()
+@tool()
 def sw_design_interference(target_iot_db: float = 20.0) -> dict[str, Any]:
     """要构造某个干扰强度的场景，该动哪些旋钮。
 
@@ -1040,7 +1275,7 @@ def sw_design_interference(target_iot_db: float = 20.0) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
+@tool()
 def sw_probe_scenario(
     preset: str | None = None,
     config: dict[str, Any] | None = None,
@@ -1083,7 +1318,7 @@ def sw_probe_scenario(
     return _jsonable(out)
 
 
-@mcp.tool()
+@tool()
 def sw_compare_scenarios(
     presets: list[str],
     num_samples: int = 30,
@@ -1116,6 +1351,449 @@ def sw_compare_scenarios(
         return {"error": "presets 不能为空。"}
 
     return _jsonable(sc.compare_probes(named, num_samples=num_samples))
+
+
+# ---------------------------------------------------------------------------
+# 仿真说明书
+# ---------------------------------------------------------------------------
+
+
+@tool()
+def sw_spec_sheet(
+    draft_id: str | None = None,
+    dataset_id: str | None = None,
+    preset: str | None = None,
+    config: dict[str, Any] | None = None,
+    title: str = "",
+    highlight: list[str] | None = None,
+    open_browser: bool = False,
+) -> dict[str, Any]:
+    """把敲定的仿真配置画成一份说明书（含示意图、可调参），返回可点开的地址。
+
+    **配置定下来之后、正式跑之前调一次**，让用户看清楚这次到底在仿什么：
+
+    * 基站阵列——RF 端口怎么排、每端口驱动几个物理阵子、间距多少、有没有栅瓣
+    * 站点拓扑——站点位置、扇区指向、UE 撒点、站间距
+    * 频域——多少 RB、怎么分 RBG、子载波间隔与实际占用带宽
+    * 时域——TDD 时隙图案
+    * 信道剖面——CDL/TDL 的时延功率谱
+    * 参数全表——**逐项标注是用户指定的还是系统默认补的**
+
+    画的是**将要跑的那个仿真**，不是配置意图：站数被六边形栅格吸附
+    （配 2 站实际 7 站）、阵列走了 legacy 而非本地 1 驱 3 硬件，
+    这些差异都按实际画并写进 ``notes``。
+
+    ``sw_generate`` 会自动生成一份（带真实撒点），句柄在 ``summary.spec_sheet``；
+    这个工具用于**生成之前**先看一眼。
+
+    **默认不替用户弹窗**，只把 ``url`` 给他，他自己在浏览器或 AI HUB 里点开。
+    页面带一个调参面板：改完点「应用到仿真」，改动**直接回到这个 MCP 进程**，
+    你随后调 ``sw_await_config`` 就能拿到——不用他复制粘贴。
+
+    所以敲定配置那一步的标准动作是：
+
+        sw_spec_sheet(...)  →  把 url 发给用户，说"点开看一眼；要改就在上面改，
+                               改完点应用"  →  sw_await_config()
+
+    ``writeback`` 字段告诉你这次是哪条路：``post`` 表示回传通道通了、
+    可以去 ``sw_await_config`` 等；``clipboard`` 表示服务没起来（原因在
+    ``serve_error``），得让用户复制粘贴。
+
+    **返回的是地址和摘要，不要把 HTML 内容贴回对话。**
+    把 ``headline`` 和 ``notes`` 转述给用户，并把 ``url`` 发给他。
+
+    参数
+    ----
+    draft_id : sw_plan / sw_revise 的草稿句柄（最常用）
+    dataset_id : 已生成的数据集，用它的配置与真实撒点
+    preset : 预设名
+    config : 直接给配置。与上面几个同时给时，config 作为覆盖项。
+    highlight : **本次对话里用户专门提过的参数名**，如
+        ``["isd_m", "num_interfering_ues"]``。它们会被顶到首屏关键信息卡最前面
+        并高亮。首屏因此既覆盖"做仿真通常最关心的"，也覆盖"这次特别在意的"——
+        用户点名过什么就把什么传进来。
+    open_browser : 默认 **False**——给地址，不替他弹窗。只有用户明确说
+        "帮我打开"时才传 True。
+    """
+    from . import spec as sp
+
+    cfg: dict[str, Any] = {}
+    user_set: list[str] = []
+    ue_xy = None
+
+    if dataset_id:
+        from . import load as _load
+
+        ds = _load(dataset_id)
+        cfg = dict(ds.config)
+        try:
+            pos = ds.ue_position
+            ue_xy = [(float(r[0]), float(r[1])) for r in pos[:400]]
+        except Exception:  # noqa: BLE001
+            ue_xy = None
+    elif draft_id:
+        draft = pl.load_draft(draft_id)
+        cfg, _own = pl.resolved_config(draft)
+        user_set = list(draft.user_set)
+    elif preset:
+        presets = pl.load_presets()
+        if preset not in presets:
+            return {"error": f"未知预设 {preset!r}", "available": sorted(presets)}
+        cfg = dict(presets[preset]["config"])
+    if config:
+        cfg.update(config)
+        user_set = sorted(set(user_set) | set(config))
+    if not cfg:
+        return {"error": "需要 draft_id / dataset_id / preset / config 其中之一。"}
+
+    out = sp.write_spec(
+        cfg, user_set=user_set, dataset_id=dataset_id,
+        title=title or "仿真说明书", ue_xy=ue_xy, highlight=highlight,
+        open_browser=open_browser,
+    )
+    if out.get("writeback") == "post":
+        out["hint"] = (
+            "把 url 发给用户让他自己点开（别替他弹窗），转述 headline 和 notes，"
+            "然后告诉他「要调参就在页面上改，改完点『应用到仿真』」，"
+            "接着调 sw_await_config 等他。**不要把 HTML 内容或图贴回对话。**"
+        )
+    else:
+        out["hint"] = (
+            "把 headline 和 notes 转述给用户，并给出 html_path 让他自己打开；"
+            f"回传只能走复制粘贴（{out.get('serve_error')}）。"
+            "**不要把 HTML 内容或图贴回对话。**"
+        )
+    return _jsonable(out)
+
+
+@tool()
+def sw_await_config(timeout_s: float = 90.0, spec_id: str | None = None) -> dict[str, Any]:
+    """等用户在说明书页面上点「应用到仿真」，把他改的参数取回来。
+
+    **紧跟在 ``sw_spec_sheet`` 之后调**（前提是它返回 ``writeback="post"``）。
+    用户在页面上拖几下滑块、点一下按钮，改动就到这里了——省掉"复制 → 切窗口
+    → 粘贴"三步。
+
+    返回 ``got=0`` **不是错误**，只是这段时间里用户没点。两种处理：
+
+    * 用户还在看 → 再调一次接着等；
+    * 用户已经在对话里说话了 → 别再等，按他说的做。
+
+    ``overrides`` 可以直接喂给 ``sw_revise(draft_id, **overrides)`` 或
+    ``sw_generate(config=...)``。**拿到后先复述一遍改了什么再动手**，
+    用户点错了得有机会喊停。
+
+    参数
+    ----
+    timeout_s : 最多等多久，默认 90 秒（上限 240）。别设太长，
+        MCP 客户端那边也有超时，卡住比等不到更难解释。
+    spec_id : 只收某一份说明书的回传。不传就收全部。
+    """
+    from . import bridge as br
+
+    subs = br.await_submission(min(float(timeout_s), 240.0), spec_id)
+    if not subs:
+        return {
+            "got": 0,
+            "waited_s": round(min(float(timeout_s), 240.0), 1),
+            "note": "这段时间里用户没点「应用到仿真」。不是错误——"
+                    "他要么还在看，要么已经改用对话说了。",
+            "bridge": br.status(),
+        }
+    # 多次点击以**最后一次**为准：用户改了又改，最后那下才是他的意思。
+    last = subs[-1]
+    return {
+        "got": len(subs),
+        "overrides": last.overrides,
+        "spec_id": last.spec_id,
+        "title": last.title,
+        "text": last.text,
+        "superseded": [s.overrides for s in subs[:-1]] or None,
+        "hint": "先向用户复述这几项改动，再调 sw_revise / sw_generate 落实。"
+                "改完记得重新出一份说明书。",
+    }
+
+
+# ---------------------------------------------------------------------------
+# 系统级仿真
+# ---------------------------------------------------------------------------
+
+
+@tool()
+def sw_system_sim(
+    dataset_id: str,
+    duration_s: float = 5.0,
+    traffic_model: str = "ftp3",
+    file_bytes: int = 500_000,
+    arrival_rate_hz: float = 2.0,
+    scheduler: str = "pf",
+    pf_window_tti: int = 100,
+    mu_enabled: bool = False,
+    trim: str = "tail",
+    tdd_pattern: str = "DDDSU",
+    neighbor_prb_util: float = 0.3,
+    neighbor_load_jitter: float = 0.05,
+    csi_aging: bool | str = True,
+    srs_period_ms: float = 10.0,
+    srs_hopping: bool | str = True,
+    csi_processing_delay_ms: float = 2.0,
+    olla_speedup: float = 1.0,
+    precoder: str = "svd",
+    seed: int = 0,
+    num_replications: int = 8,
+) -> dict[str, Any]:
+    """**系统级仿真：连续几秒钟的 TTI，出体验速率等现网 KPI，全部带置信区间。**
+
+    这是和链路级完全不同的一层。链路级问"这个信道能跑多快"，
+    系统级问"**这个小区里的用户实际体验到多快**"——把话务到达与结束、
+    调度器的多用户取舍、HARQ 重传、缓冲区排空全算进去。
+
+    **体验速率是现网真正上报的 KPI**，不是吞吐量的平均：
+
+    * 只在"有数据要发"的时间段里算
+    * 分母是**缓冲区非空的时间**（含排队等调度的 TTI），不是被调度的 TTI 数
+    * ``trim="tail"``：排除清空缓冲区的最后一个 slice（3GPP TS 28.552 §5.1.1.3）
+    * ``trim="head_tail"``：再排除首个 TTI（运营商话统的掐头去尾口径）
+
+    返回里 **cell 是小区级、users 是用户级**，两级都有：平均调度 MCS、
+    平均 rank、首传 BLER、残留 BLER、体验速率的中位与 5% 边缘。
+
+    **每个 KPI 都是 ``{mean, std, ci95, n_rep, cv, rel_half_width}`` 而不是一个裸数**
+    ——同一批信道、同一套配置只改种子，实测 ``cell_experienced_mbps`` 的变异系数
+    有 **11.4%**（``measurements/seed_variance.json``），单次运行报出来的
+    "142.3 Mbps" 小数点后那位是假的。念数字前先看 ``rel_half_width``：
+    比它小的差异这次实验分辨不出来。
+
+    ``notes`` 会主动报出让结论不成立的情况：队列积压未收敛、burst 样本太少、
+    信道快照不足（时间起伏被低估，PF 拿不到多用户分集）、字节对不上账、
+    置信区间过宽。**这些必须转述给用户，别只报好看的数字。**
+
+    参数
+    ----
+    dataset_id : 已生成的数据集。**建议生成时 num_slots_per_sample >= 8**，
+        否则信道没有时间起伏，PF 调度退化成轮询。
+    duration_s : 仿真时长，3~20 秒。40000 TTI 实测 0.2 秒跑完。
+    traffic_model : ``ftp3``（3GPP FTP Model 3，评价体验速率的标准话务）/
+        ``bimodal``（**现网话务两头高中间低**：绝大部分是只占 1 个 RBG 的小包
+        和占满全带宽的大包，两者的体验速率分开报）/
+        ``full_buffer``（**体验速率在这个模型下没有意义**，缓冲区永不空）/ ``cbr``
+    arrival_rate_hz : 每用户每秒到达几个文件。控制负载——太高会积压，
+        ``notes`` 会拦。
+    mu_enabled : 是否允许 MU 配对。默认关，先看清 SU 基线。
+    neighbor_prb_util : **邻区 PRB 利用率**，默认 0.3。ChannelHub 的几何 SINR
+        是按所有邻区都在发算的（等于 100%），真实网络 5G 典型是 10%/30%/50%。
+        按 full buffer 算会把干扰放大到不真实的程度。1.0 退化成原行为。
+        **当前只支持全网统一值**——几何 SIR 是聚合量，拿不到逐邻区贡献。
+    neighbor_load_jitter : 实际生效负载在配置值 ±这个比例内逐快照波动，默认 0.05。
+        恒定负载会让所有快照的干扰完全一样，结果比现网干净。
+    csi_aging : **是否建模 CSI 反馈时延与老化**，默认开。关掉退化成零时延完美 CSI
+        ——那是个上界不是现网，MU 增益会被系统性高估。
+    srs_period_ms : SRS 周期，只接受 5 / 10 / 20 / 40 ms。
+    srs_hopping : SRS 跳频。默认开，对应 38.211 Table 6.4.1.4.3-1 的 C_SRS=57
+        （每跳 16 RB = 1 个 RBG，**17 跳**扫完 272 RB）。
+        **这是老化的主导项**：10 ms 周期下全带扫一遍要 170 ms。
+    csi_processing_delay_ms : 信道估计 + 预编码计算 + 调度下发的固定时延。
+    olla_speedup : OLLA 两个步长的**等比**放大系数，默认 1.0（现网基线 +0.01/−0.1）。
+        稳态 BLER = up/(up+down) 与它无关，放大只加快收敛、加大稳态抖动。
+        短仿真里基线常常压不动一档 MCS，可临时设 10；**出正式结论设回 1.0**。
+        非 1.0 时结果里会带一条显式告警。
+    precoder : **实际发射权**。``svd`` 逐 RBG 特征波束（理论最优，默认）；
+        ``type1`` 用 38.214 Type I 宽带码本当发射权。
+        码本自由度少，**在 CSI 老化下反而可能更耐受**——能算错的地方也少。
+        ``type1`` 时 BF Gain 恒为 0（发射权就是 CQI 的参照权）。
+    seed : 实验批次的**主种子**（对应 ns-3 的 ``RngSeed``）。重复实验**不要**
+        靠改它——改它等于换一整个宇宙，两批之间没有任何"流不重叠"的保证。
+    num_replications : 独立重复次数（对应 ns-3 的 ``RngRun``），默认 **8**。
+        **这个默认值是算出来的，不是拍的**：
+
+        * n ≤ 5 时判决检验（Wilcoxon 符号秩）最小可达 p 是 ``2/2^n`` > 0.05，
+          **无论数据多干净都不可能宣告显著**——而它照样会算出漂亮的百分比。
+          n=6 是硬下界（p_min=0.031），8 留了余量（p_min=0.0078）。
+        * 代价不大：``build_link_tables`` 与随机种子无关，**只建一次表**，
+          重复的只是 TTI 主循环。代价比例是
+          ``(n−1)·T_loop / (T_build + T_loop)``，**随数据集大小变**——
+          实测建表 5.1 s / 主循环 1.0 s 时 8 次是 +113%，
+          建表 10.5 s / 主循环 1.1 s 时是 +67%。
+        * **收窄比 1/√n 快。** 区间半宽 = ``t(0.975,n−1)·σ/√n``，
+          t 因子本身也在缩（n=4 时 3.18、n=16 时 2.13），所以从 n=4 到 n=16
+          实测是 **0.36 倍**而不是 1/√n 的 0.5 倍。
+          写成"按 1/√n"会低估多跑几次的收益。
+          实测半宽/均值（从 64 次重复里重抽，见 ``measurements/rng_replication.json``）：
+          n=4 时 13.6%、**n=8 时 7.5%**、n=16 时 4.9%、n=32 时 3.4%。
+          8 是拐点——再翻倍只多拿 2.6 个百分点，却要多一倍墙钟。
+
+        设成 1 会退回"单次运行、无区间"，并在 ``notes`` 里明确告警。
+    """
+    # 局部 import：本函数用得到 time / rng，但顶层已经很挤，
+    # 而且这个模块里就是这么写的（见下面 `_load` / `sysm`）。
+    import time  # noqa: PLC0415
+
+    from . import load as _load  # noqa: PLC0415
+    from . import rng  # noqa: PLC0415
+    from . import system as sysm  # noqa: PLC0415
+
+    ds = _load(dataset_id)
+    try:
+        h = ds.h_true
+        sinr = np.asarray(ds.scalar("sinr_dB"))
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"取不到信道或 sinr_dB：{exc}"}
+
+    h_users = [np.asarray(h[i]) for i in range(h.shape[0])]
+    # **样本数不是用户数。** 数据集里 num_samples 个样本分布在 num_ues 个
+    # UE 位置上；不按 UE 合并的话小区里会多出好几倍的人，
+    # 每用户谱效被摊薄（实测 40 样本/10 UE 时从 0.32 掉到 0.08）。
+    n_ue = int(ds.config.get("num_ues") or 0) or None
+    try:
+        sir = [float(x) for x in np.asarray(ds.scalar("sir_dB"))]
+    except Exception:  # noqa: BLE001
+        sir = None
+    # **快照间隔由配置算出来，不能拍脑袋。** ChannelHub 的多时隙输出是连续的
+    # SRS/CSI-RS 机会（默认 5 ms），不是连续 TTI——当成 TTI 会让所有时间相关的
+    # 结论差 10 倍，见 CLAUDE.md「多时隙的快照间隔是 5 ms」。
+    snap_ms = sysm.snapshot_interval_ms(ds.config)
+    # 说明书页面上的开关是 select，回传的是 "on"/"off" 字符串；
+    # 直接 bool() 的话 "off" 是**真值**，开关会失灵而且完全无声。
+    def _flag(v: Any) -> bool:
+        return v.strip().lower() not in ("off", "false", "0", "no", "") \
+            if isinstance(v, str) else bool(v)
+
+    try:
+        csi_cfg = sysm.ca.CsiConfig(
+            enabled=_flag(csi_aging), srs_period_ms=float(srs_period_ms),
+            hopping=_flag(srs_hopping),
+            processing_delay_ms=float(csi_processing_delay_ms))
+    except ValueError as exc:
+        return {"error": str(exc)}
+    # **邻区负载抖动走它自己的随机流**，不是 `seed + 909`。
+    # `master + 常数` 正是 NumPy 并行随机数文档点名的反模式（"UNSAFE! Do not do
+    # this!"）：换一次 master 就可能和别的流撞上，而撞上之后两条流是**逐位相同**
+    # 的，不是"相关"——这种复用在结果里完全看不出来。见 rng.py 的模块文档。
+    load_rng = rng.RngBook(master_seed=int(seed)).generator("neighbor_load")
+    _t_build = time.perf_counter()
+    try:
+        tables = sysm.build_link_tables(
+            h_users, [float(x) for x in sinr], num_ues=n_ue, geo_sir_db=sir,
+            neighbor_load=float(neighbor_prb_util), csi=csi_cfg, snapshot_ms=snap_ms,
+            load_jitter_rng=(load_rng if float(neighbor_load_jitter) > 0 else None),
+            precoder=str(precoder))
+    except ValueError as exc:
+        return {"error": str(exc)}
+    mu_gain = (sysm.measure_mu_gain(h_users, [float(x) for x in sinr], num_ues=n_ue,
+                                    csi=csi_cfg, snapshot_ms=snap_ms)
+               if mu_enabled else {"ratio": 1.0, "measured": False,
+                                   "note": "未开 MU"})
+    build_s = time.perf_counter() - _t_build
+
+    # **建表只做一次，重复的只是 TTI 主循环。** build_link_tables 与随机种子
+    # 完全无关（SVD、码本搜索、MCS 查表都是确定性的），所以 n 次重复的边际成本
+    # 只有主循环那一份——这是置信区间能默认开着的唯一原因。
+    try:
+        res = sysm.simulate_replications(
+            tables,
+            num_replications=int(num_replications), master_seed=int(seed),
+            sys_cfg=sysm.SystemConfig(duration_s=float(duration_s),
+                                      tdd_pattern=tdd_pattern, seed=int(seed),
+                                      snapshot_update_ms=snap_ms),
+            traffic=sysm.TrafficConfig(model=traffic_model, file_bytes=int(file_bytes),
+                                       arrival_rate_hz=float(arrival_rate_hz)),
+            sched=sysm.SchedulerConfig(algorithm=scheduler,
+                                       pf_window_tti=int(pf_window_tti),
+                                       mu_enabled=bool(mu_enabled),
+                                       olla_speedup=float(olla_speedup)),
+            kpi=sysm.KpiConfig(trim=trim),
+            mu_se_ratio=float(mu_gain["ratio"]),
+            build_elapsed_s=build_s,
+        )
+    except ValueError as exc:
+        return {"error": str(exc)}
+    out = res.as_dict()
+    out["dataset_id"] = dataset_id
+    out["num_ues"] = len(tables)
+    out["kpi_format"] = {
+        "shape": "cell / users 里的每个 KPI 都是 {mean, std, ci95, n_rep, cv, "
+                 "rel_half_width, min, max}，不是一个裸数",
+        "ci95": "95% 置信区间，t 分布（n 小时 t 比 z 宽 20%，用 z 会把区间报窄）",
+        "rel_half_width": "区间半宽 / 均值。**比它小的差异这次实验分辨不出来**",
+        "why": ("同一批信道、同一套配置只改种子，实测 cell_experienced_mbps 的"
+                "变异系数 11.4%（measurements/seed_variance.json）。"
+                "上一轮就发生过把 11.4% 的噪声报成「+14% 提升」的事故。"),
+    }
+    out["rng"] = {
+        **rng.RngBook(master_seed=int(seed)).as_dict(),
+        "num_replications": int(num_replications),
+        "stream_purposes": dict(rng.STREAMS),
+        "covered_by_ci": ["traffic", "harq", "scheduler"],
+        "not_covered_by_ci": ["channel", "neighbor_load"],
+        "ci_scope": ("各次重复共用同一批信道与同一张链路表（建表与种子无关，"
+                     "只建一次），所以区间覆盖的是话务到达、HARQ 误码、调度决胜"
+                     "这三条流的抽样噪声。冻结邻区负载抖动**实测没有可分辨地"
+                     "把离散度报小**（64 次 replication vs 32 次 master seed 扫描，"
+                     "五个 KPI 里四个的变异系数区间重叠，见 "
+                     "measurements/rng_replication.json）。"
+                     "**信道实现本身的不确定度是另一个、更大的方差分量**，"
+                     "要覆盖它得用不同 seed 重新 sw_generate 再比。"),
+    }
+    out["mu_gain"] = mu_gain
+    aging = sysm.ca.aging_summary(
+        csi_cfg, num_rbg=17, snapshot_ms=snap_ms,
+        speed_kmh=float(ds.config.get("ue_speed_kmh", 3.0) or 3.0))
+    out["csi_aging"] = aging
+    out["precoder"] = {
+        "transmit_weight": str(precoder),
+        "note": ("SVD 逐 RBG 特征波束" if precoder == "svd"
+                 else "38.214 Type I 宽带码本；BF Gain 恒为 0（发射权即参照权）"),
+        "cqi_reference_weight": "type1_wideband",
+    }
+    out["neighbor_load"] = sysm.NeighborLoadConfig(
+        prb_utilization=float(neighbor_prb_util),
+        jitter=float(neighbor_load_jitter), seed=int(seed)).as_dict()
+
+    # **让结论不成立的条件必须进 notes**，不能只躺在子字段里等人翻。
+    notes = list(out.get("notes") or [])
+    notes.extend(aging.get("warnings") or [])
+    _n_snap = int(tables[0].sinr_db.shape[0]) if tables else 0
+    if not csi_cfg.enabled:
+        notes.append("**CSI 老化已关闭**：预编码用的是零时延完美信道，"
+                     "这是上界不是现网——MU 增益会被系统性高估。")
+    elif _n_snap <= 1:
+        notes.append(
+            "**CSI 老化开着但测不出来**：这个数据集每个 UE 只有 1 个信道快照，"
+            "「陈旧信道」和「当前信道」是同一个矩阵，老化的效果恒为 0。"
+            "要看老化就得让每个 UE 有多个时间相关的快照——"
+            "生成时把 num_slots_per_sample 调到 8 以上，或让 num_samples 是 num_ues 的倍数。")
+    else:
+        notes.append(
+            f"CSI 老化已开：SRS {csi_cfg.srs_period_ms:g} ms"
+            f"{f'、{csi_cfg.hop_factor} 倍跳频' if csi_cfg.hopping else '、不跳频'}，"
+            f"全带扫一遍 {csi_cfg.full_sweep_ms:g} ms，平均 CSI 年龄 "
+            f"{csi_cfg.mean_age_ms:.0f} ms。")
+    if float(olla_speedup) != 1.0:
+        notes.append(sysm.SchedulerConfig(
+            olla_speedup=float(olla_speedup)).as_dict()["olla_speedup_warning"])
+    out["notes"] = notes
+    out["num_samples"] = len(h_users)
+    out["summary"] = res.text()
+    out["timing"] = {
+        "build_tables_s": round(build_s, 3),
+        "tti_loops_s": round(res.elapsed_s, 3),
+        "per_replication_s": round(res.elapsed_s / max(res.n_rep, 1), 3),
+        "total_s": round(build_s + res.elapsed_s, 3),
+        "overhead_vs_single_run": (
+            round((build_s + res.elapsed_s)
+                  / max(build_s + res.elapsed_s / max(res.n_rep, 1), 1e-9) - 1.0, 3)),
+        "note": ("建表与随机种子无关，只做一次；重复的只有 TTI 主循环。"
+                 "overhead_vs_single_run 就是"
+                 "「跑 n 次比跑 1 次多花的比例」。"),
+    }
+    out["hint"] = ("先把 summary 念给用户（**带上方括号里的置信区间**），"
+                   "再把 notes 里的每一条都说出来——那些是让这组数字不成立的条件。"
+                   "**报差异之前先比一比 rel_half_width**：效应比区间半宽还小时"
+                   "只能说「分辨不出来」，不能报百分比。"
+                   "两组配置的正式对比用 rng.compare_replications()，"
+                   "它复用 gates.py 的配对检验并给出明确判决。"
+                   "用户级明细在 users 里。")
+    return _jsonable(out)
 
 
 def main() -> None:

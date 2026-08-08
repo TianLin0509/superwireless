@@ -184,7 +184,7 @@ print("      或者你直接说")
 
 n_this_round = len(prop["design_questions"]) + len(prop["questions"])
 print(f"\n    本轮 {n_this_round} 问，还剩 {prop['remaining_count']} 项")
-check(2 <= n_this_round <= 4, f"一轮问 2~4 个（实际 {n_this_round}）")
+check(2 <= n_this_round <= 6, f"一轮问 2~6 个（实际 {n_this_round}）")
 check(all(3 <= len(q["options"]) <= 4 for q in prop["design_questions"] + prop["questions"]),
       "每个问题 3~4 个选项")
 check(all(any(o.get("recommended") for o in q["options"])
@@ -197,8 +197,10 @@ check(prop["can_generate_now"], "任何一轮之后都能直接生成")
 print("\n  多轮推进：")
 seen_questions: set[str] = set()
 dr, pr = d3, p3
-for _ in range(4):
+n_rounds = 0
+for _ in range(6):
     pp = pl.build_proposal(dr, pr)
+    n_rounds += 1
     keys = [q["key"] for q in pp["design_questions"] + pp["questions"]]
     dup = seen_questions & set(keys)
     print(f"    第 {pp['round']} 轮 · {pp['round_focus']}：{len(keys)} 问 {keys}")
@@ -211,6 +213,16 @@ for _ in range(4):
     dg = {q["key"]: "（用户已答）" for q in pp["design_questions"]}
     dr, pr, _ = pl.revise_draft(dr.draft_id, overrides=ov or None, design=dg or None)
 check(not pp["has_more_rounds"], "有限轮内收敛完毕")
+# 用户明确要求把提问压到 2~3 轮：轮次比单轮长度更让人烦。
+# 设计层与参数层没有先后依赖，已合并在第 1 轮一起问。
+print(f"    收敛用了 {n_rounds} 轮")
+check(n_rounds <= 3, f"2~3 轮内问完（实际 {n_rounds} 轮）")
+
+# 每一轮都要给出"还剩下的是不是都有默认值"，好让 Agent 把最后一轮
+# 包装成一句可跳过的话，而不是又摆一屏选项
+_p1 = pl.build_proposal(*pl.create_draft("验证 CSI 压缩"))
+check("remaining_all_optional" in _p1 and "target_rounds" in _p1,
+      "提案带 remaining_all_optional / target_rounds，供 Agent 决定要不要再问一轮")
 
 # 用户确认默认值（值没变）也应推进轮次，否则会重复问
 d_c, p_c = pl.create_draft("验证 CSI 压缩")

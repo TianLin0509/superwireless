@@ -240,7 +240,7 @@ Copy-Item -Recurse -Force skills\channel-sim $HOME\.claude\skills\
 Copy-Item -Recurse -Force skills\channel-sim $HOME\.codex\skills\
 ```
 
-**不装也能用 MCP**，16 个工具全在，只是没有工作流编排——agent 得自己想
+**不装也能用 MCP**，30 个工具全在，只是没有工作流编排——agent 得自己想
 什么时候过门、结论怎么写。装了体验完整很多。
 
 **验证：** 文件存在且和仓库里那份一致。
@@ -252,13 +252,16 @@ Copy-Item -Recurse -Force skills\channel-sim $HOME\.codex\skills\
 ```bash
 cd <仓库>
 <PYTHON> tests/test_e2e.py         # 端到端 39 项
-<PYTHON> tests/test_mcp_server.py  # MCP 全链路 21 项
+<PYTHON> tests/test_mcp_server.py  # MCP 全链路 33 项
+<PYTHON> tests/test_raytracing.py  # 射线追踪与决策层 39 项
 <PYTHON> tests/test_linklevel.py   # 谱效、可信度、物理层 35 项
 <PYTHON> tests/test_gates.py       # 校准、标准表、三道门、统计判决 86 项
-<PYTHON> tests/test_raytracing.py  # 射线追踪与决策层 39 项
+<PYTHON> tests/test_results.py     # 结果索引与取货 80 项
+<PYTHON> tests/test_linkadapt.py   # 链路自适应、吞吐、并行生成 135 项
+<PYTHON> tests/test_interference.py # IoT、测量域、场景预设、探测模式、文档计数 145 项
 ```
 
-共 **220 项**。测试会真跑仿真，全跑一遍约 6~10 分钟。
+共 **592 项**。测试会真跑仿真；当前开发环境全跑一遍约 2 分钟，安装环境不同会有波动。
 每个文件最后一行会写"全部通过"或列出失败项，退出码非 0 表示失败。
 
 **时间紧就只跑前两个**（`test_e2e` + `test_mcp_server`，约 1 分钟），
@@ -337,7 +340,7 @@ rm -rf ~/.claude/skills/channel-sim ~/.codex/skills/channel-sim
 用户提一个无线算法优化思路，它给出可信的信道场景实例、配套物理观察量，
 以及 SINR / 谱效的完整评价链路，并用三道门拦住站不住的结论。
 
-- 16 个 MCP 工具，从探能力、问需求、生成、取货，到 3GPP 校准、三道评审门
+- 30 个 MCP 工具，从探能力、问需求、生成、取货，到 BLER/TDD AMC、3GPP 校准、三道评审门
 - **数据永远不进对话** —— MCP 只回句柄、统计摘要和可运行的取货代码
 - 详见 `SETUP.html`（组成与用法）、`CAPABILITIES.html`（能力边界）、
   `SHOWCASE.html`（实测演示）

@@ -1,0 +1,70 @@
+{
+  "sys_urban_macro_field_csi": {
+    "avg_mcs": [
+      7.988,
+      5.4
+    ],
+    "avg_rank": [
+      1.759,
+      2.2
+    ],
+    "bler_first_tx": [
+      0.358,
+      8.0
+    ],
+    "cell_experienced_mbps": [
+      119.618,
+      8.9
+    ],
+    "cell_served_mbps": [
+      61.148,
+      10.9
+    ],
+    "ue_experienced_p5_mbps": [
+      37.05,
+      10.5
+    ],
+    "olla_db_mean": [
+      -4.211,
+      8.2
+    ],
+    "occupancy": [
+      0.534,
+      8.5
+    ]
+  },
+  "sys_urban_macro_ideal_csi": {
+    "avg_mcs": [
+      10.364,
+      2.2
+    ],
+    "avg_rank": [
+      1.743,
+      2.5
+    ],
+    "bler_first_tx": [
+      0.122,
+      9.9
+    ],
+    "cell_experienced_mbps": [
+      252.779,
+      6.1
+    ],
+    "cell_served_mbps": [
+      61.666,
+      10.9
+    ],
+    "ue_experienced_p5_mbps": [
+      101.345,
+      11.0
+    ],
+    "olla_db_mean": [
+      -0.266,
+      58.9
+    ],
+    "occupancy": [
+      0.282,
+      10.2
+    ]
+  }
+}

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>「635 项测试」到底是什么</title>
+<style>
+  :root{
+    --bg:#fafafa; --card:#fff; --ink:#1d1d1f; --ink-soft:#6e6e73;
+    --border:#d2d2d7; --accent:#0071e3;
+    --success:#34c759; --warning:#ff9f0a; --danger:#ff3b30;
+    --code-bg:#1d1d1f; --code-ink:#f5f5f7;
+    --tint-blue:#eef5fd; --tint-blue-ink:#0055b3;
+    --tint-green:#eef9f0; --tint-green-ink:#1a7a34;
+    --tint-amber:#fdf5e8; --tint-amber-ink:#8a5a00;
+    --tint-red:#fdeeed; --tint-red-ink:#a32620;
+    --tint-grey:#f2f2f4; --tint-grey-ink:#4a4a4e;
+    --tint-purple:#f3f0fb; --tint-purple-ink:#5a3ec8;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#1d1d1f; --card:#2c2c2e; --ink:#f5f5f7; --ink-soft:#aeaeb2;
+      --border:#38383a; --accent:#0a84ff;
+      --success:#30d158; --warning:#ffd60a; --danger:#ff453a;
+      --tint-blue:#12263c; --tint-blue-ink:#8ec2ff;
+      --tint-green:#14301c; --tint-green-ink:#7ee096;
+      --tint-amber:#33280c; --tint-amber-ink:#ffd77a;
+      --tint-red:#3a1a18; --tint-red-ink:#ff9a92;
+      --tint-grey:#333336; --tint-grey-ink:#c8c8cc;
+      --tint-purple:#241d3d; --tint-purple-ink:#b9a6f5;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; padding:40px 20px; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    font-size:15px; line-height:1.75; overflow-x:hidden;}
+  .wrap{max-width:1140px; margin:0 auto;}
+  h1{font-size:34px; font-weight:700; letter-spacing:-0.03em; margin:0 0 10px;}
+  .tagline{font-size:17px; color:var(--ink-soft); margin:0 0 8px;}
+  .meta{color:var(--ink-soft); font-size:13px; margin:0 0 28px; font-family:"SF Mono",Consolas,monospace;}
+  h2{font-size:24px; font-weight:700; letter-spacing:-0.02em; margin:54px 0 8px; padding-top:22px; border-top:1px solid var(--border);}
+  h3{font-size:18px; font-weight:600; margin:32px 0 8px;}
+  h4{font-size:15px; font-weight:600; margin:22px 0 6px;}
+  p{margin:10px 0;}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:24px; margin:20px 0;}
+  .lead{font-size:16px; color:var(--ink-soft); margin:0 0 18px;}
+
+  .toc{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px 24px; margin:24px 0 34px;}
+  .toc ol{margin:6px 0; padding-left:22px; columns:2; column-gap:32px;}
+  .toc li{margin:4px 0; break-inside:avoid;}
+  .toc a{color:var(--accent); text-decoration:none;}
+  .toc a:hover{text-decoration:underline;}
+
+  .callout{border-radius:10px; padding:16px 20px; margin:18px 0; border-left:3px solid;}
+  .callout p:first-child{margin-top:0;} .callout p:last-child{margin-bottom:0;}
+  .c-blue{background:var(--tint-blue); color:var(--tint-blue-ink); border-left-color:var(--accent);}
+  .c-green{background:var(--tint-green); color:var(--tint-green-ink); border-left-color:var(--success);}
+  .c-amber{background:var(--tint-amber); color:var(--tint-amber-ink); border-left-color:var(--warning);}
+  .c-red{background:var(--tint-red); color:var(--tint-red-ink); border-left-color:var(--danger);}
+  .c-purple{background:var(--tint-purple); color:var(--tint-purple-ink); border-left-color:#5a3ec8;}
+
+  .plain{background:var(--tint-grey); color:var(--tint-grey-ink); border-radius:10px; padding:14px 18px; margin:14px 0; font-size:14.5px;}
+  .plain::before{content:"白话讲　"; font-weight:600;}
+  .plain p{margin:8px 0;} .plain p:first-of-type{display:inline;}
+
+  .tbl-wrap{overflow-x:auto; margin:16px 0; border:1px solid var(--border); border-radius:10px;}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; background:var(--card);}
+  th,td{padding:9px 13px; text-align:left; border-bottom:1px solid var(--border); vertical-align:top;}
+  th{background:var(--tint-grey); color:var(--tint-grey-ink); font-weight:600; white-space:nowrap; font-size:13px;}
+  tr:last-child td{border-bottom:none;}
+  code{font-family:"SF Mono",Consolas,Monaco,monospace; background:var(--tint-grey); color:var(--tint-grey-ink);
+       padding:1px 5px; border-radius:4px; font-size:12.5px;}
+  td code,th code{font-size:12px;}
+  .nowrap{white-space:nowrap;}
+  pre{background:var(--code-bg); color:var(--code-ink); padding:16px 20px; border-radius:10px; overflow-x:auto;
+      font-family:"SF Mono",Consolas,Monaco,monospace; font-size:12.5px; line-height:1.62; margin:14px 0;}
+  pre code{background:none; color:inherit; padding:0; font-size:inherit;}
+  .cm{color:#8e8e93;}
+
+  ul,ol{margin:10px 0; padding-left:24px;} li{margin:5px 0;}
+
+  .pill{display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; white-space:nowrap;}
+  .p-ok{background:var(--tint-green); color:var(--tint-green-ink);}
+  .p-no{background:var(--tint-red); color:var(--tint-red-ink);}
+  .p-mid{background:var(--tint-amber); color:var(--tint-amber-ink);}
+  .p-info{background:var(--tint-blue); color:var(--tint-blue-ink);}
+
+  .grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; margin:18px 0;}
+  .mini{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:18px;}
+  .mini h4{margin:0 0 8px; font-size:15px;}
+  .mini p{margin:6px 0; font-size:14px; color:var(--ink-soft);}
+
+  .dims{display:flex; gap:8px; flex-wrap:wrap; margin:14px 0;}
+  .dim{background:var(--tint-purple); color:var(--tint-purple-ink); border-radius:8px; padding:8px 13px; font-size:13px;}
+  .dim b{font-family:"SF Mono",Consolas,monospace;}
+
+  .src{font-family:"SF Mono",Consolas,monospace; font-size:12px; color:var(--ink-soft);}
+  .q{font-size:14px; color:var(--ink-soft); margin:14px 0 0; padding-left:14px; border-left:2px solid var(--border);}
+  footer{margin-top:64px; padding-top:24px; border-top:1px solid var(--border); color:var(--ink-soft); font-size:13px;}
+</style>
+
+<style>
+  .chain{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:18px 0;}
+  .chain .box{background:var(--card); border:1px solid var(--border); border-radius:8px;
+              padding:8px 13px; font-size:13px;}
+  .chain .box.hi{border-color:var(--accent); border-width:2px; font-weight:600;}
+  .chain .arr{color:var(--ink-soft);}
+  .lossbar{margin:16px 0;}
+  .lossbar .row{display:flex; align-items:center; gap:10px; margin:6px 0; font-size:13.5px;}
+  .lossbar .lbl{min-width:150px; color:var(--ink-soft);}
+  .lossbar .bar{height:20px; border-radius:4px; background:var(--accent);}
+  .lossbar .val{font-family:"SF Mono",Consolas,monospace; font-size:12.5px;}
+  .exact{background:var(--tint-green); color:var(--tint-green-ink);}
+  .model{background:var(--tint-amber); color:var(--tint-amber-ink);}
+  .tag{display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px;}
+</style>
+
+
+<style>
+  .bignum{display:flex; gap:18px; flex-wrap:wrap; margin:22px 0;}
+  .bignum .b{background:var(--card); border:1px solid var(--border); border-radius:12px;
+             padding:16px 22px; min-width:130px;}
+  .bignum .n{font-size:30px; font-weight:700; letter-spacing:-0.02em; line-height:1.2;}
+  .bignum .l{font-size:13px; color:var(--ink-soft); margin-top:2px;}
+  .code-demo{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:16px 0;}
+  @media(max-width:720px){.code-demo{grid-template-columns:1fr;}}
+  .ladder{margin:18px 0;}
+  .ladder .step{display:flex; gap:12px; align-items:flex-start; margin:10px 0;}
+  .ladder .tag{flex:0 0 92px; font-size:12px; font-weight:600; padding:3px 9px;
+                border-radius:20px; text-align:center;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>「635 项测试」到底是什么</h1>
+<p class="tagline">数字从哪来 · 拦住过什么 · 以及它<b>证明不了</b>什么</p>
+<p class="meta">全部数字来自真跑一遍 · 2026-07-31</p>
+
+<div class="callout c-amber">
+<p><b>先说结论：这个数字本身是个弱指标。</b> 它是"实际执行了多少条断言"，
+一个 <code>for</code> 循环就能凭空加 26 条。真正有价值的不是 635 这个数，
+而是<b>其中哪几条是从真实事故里长出来的</b>——本页第三节列了 8 条。</p>
+</div>
+
+<div class="toc">
+<strong>目录</strong>
+<ol>
+<li><a href="#s1">它其实是什么：一个 8 行的小函数</a></li>
+<li><a href="#s2">635 从哪来：拆到文件</a></li>
+<li><a href="#s3">拦住过什么：8 个真实事故</a></li>
+<li><a href="#s4">三类 check，价值差很远</a></li>
+<li><a href="#s5">它证明不了什么</a></li>
+<li><a href="#s6">日常怎么用</a></li>
+</ol>
+</div>
+
+<h2 id="s1">一、它其实是什么：一个 8 行的小函数</h2>
+
+<p>没有 pytest，没有框架。整个测试体系的核心就是这么一个函数，
+每个测试文件开头都抄了一份：</p>
+
+<pre><code>FAILED: list[str] = []
+
+def check(cond: bool, label: str) -> None:
+    print(("  PASS  " if cond else "  FAIL  ") + label)
+    if not cond:
+        FAILED.append(label)</code></pre>
+
+<p>"635 项"就是<b>这个函数被调用了 635 次</b>，每次打印一行 PASS 或 FAIL。
+跑完统计 <code>FAILED</code> 列表，非空就 <code>sys.exit(1)</code>。</p>
+
+<div class="code-demo">
+<div class="mini"><h4>一条 check 长这样</h4>
+<pre><code><span class="cm"># 物理自检：IoT 公式必须和定义式逐位相等</span>
+check(worst &lt; 1e-9,
+  "IoT = SIR/(SIR-SINR) 与 (I+N)/N 一致")</code></pre>
+<p>跑出来是一行 <code>PASS IoT = SIR/(SIR-SINR)…</code></p></div>
+<div class="mini"><h4>为什么不用 pytest</h4>
+<p>因为这些"测试"多数在<b>打印物理量</b>：偏差多少 dB、中位数多少、
+分布长什么样。pytest 默认吞掉 stdout，而这里输出本身就是给人看的证据。</p>
+<p>代价是没有 <code>-k</code> 筛选、没有并行、没有覆盖率统计。</p></div>
+</div>
+
+<h2 id="s2">二、635 从哪来：拆到文件</h2>
+
+<div class="bignum">
+<div class="b"><div class="n">8</div><div class="l">个测试文件</div></div>
+<div class="b"><div class="n">2,645</div><div class="l">行测试代码</div></div>
+<div class="b"><div class="n">504</div><div class="l">处 check 调用点</div></div>
+<div class="b"><div class="n">635</div><div class="l">条断言实际执行</div></div>
+<div class="b"><div class="n">142s</div><div class="l">跑完全部</div></div>
+<div class="b"><div class="n">81</div><div class="l">个小节</div></div>
+</div>
+
+<div class="tbl-wrap"><table>
+<tr><th>文件</th><th>源码行</th><th>写了几处 check</th><th>实跑几条</th><th>放大</th><th>耗时</th></tr>
+<tr><td><code>test_e2e</code><br><span class='src'>端到端 —— 从探测能力、意图识别、生成、取货代码到中文编码往返，跑一条完整链路</span></td><td class='nowrap'>224</td><td class='nowrap'>36</td><td class='nowrap'><b>39</b></td><td class='nowrap'>1.08×</td><td class='nowrap'>4.5s</td></tr>
+<tr><td><code>test_mcp_server</code><br><span class='src'>MCP 全链路 —— 真起一个 MCP 服务端，按协议逐个调工具，验证 agent 那一侧看到的东西</span></td><td class='nowrap'>275</td><td class='nowrap'>34</td><td class='nowrap'><b>33</b></td><td class='nowrap'>0.97×</td><td class='nowrap'>6.5s</td></tr>
+<tr><td><code>test_raytracing</code><br><span class='src'>射线追踪 + 决策层 —— 场景资产准备、真实城市地图、提问分轮与收敛</span></td><td class='nowrap'>283</td><td class='nowrap'>39</td><td class='nowrap'><b>40</b></td><td class='nowrap'>1.03×</td><td class='nowrap'>9.4s</td></tr>
+<tr><td><code>test_linklevel</code><br><span class='src'>谱效与物理层 —— 预编码 → 逐层 SINR → 谱效链路，接收机对比，蒙特卡洛收敛</span></td><td class='nowrap'>215</td><td class='nowrap'>36</td><td class='nowrap'><b>35</b></td><td class='nowrap'>0.97×</td><td class='nowrap'>28.8s</td></tr>
+<tr><td><code>test_gates</code><br><span class='src'>3GPP 校准 + 三道门 —— 标准查表值、38.901 §7.8 校准量、门 1/2/3 的判决逻辑</span></td><td class='nowrap'>430</td><td class='nowrap'>81</td><td class='nowrap'><b>86</b></td><td class='nowrap'>1.06×</td><td class='nowrap'>26.5s</td></tr>
+<tr><td><code>test_results</code><br><span class='src'>外部算法契约 —— 预注册、样本 ID 对齐、外部结果注册与拦截</span></td><td class='nowrap'>323</td><td class='nowrap'>79</td><td class='nowrap'><b>80</b></td><td class='nowrap'>1.01×</td><td class='nowrap'>5.7s</td></tr>
+<tr><td><code>test_linkadapt</code><br><span class='src'>链路自适应 —— 38.214 MCS/CQI/TBS、QAM 约束容量、BLER 曲线、TDD AMC、并行</span></td><td class='nowrap'>395</td><td class='nowrap'>98</td><td class='nowrap'><b>135</b></td><td class='nowrap'>1.38×</td><td class='nowrap'>22.9s</td></tr>
+<tr><td><code>test_interference</code><br><span class='src'>干扰量化 + 场景 —— IoT 推导、测量域、26 个场景预设、探测模式、文档计数</span></td><td class='nowrap'>500</td><td class='nowrap'>101</td><td class='nowrap'><b>187</b></td><td class='nowrap'>1.85×</td><td class='nowrap'>37.6s</td></tr>
+</table></div>
+
+<p><b>"放大"那一列是这个数字最该被怀疑的地方。</b>
+写一处 <code>check</code> 放进 <code>for</code> 循环，跑 26 个预设就变 26 条。
+整体放大 <b>1.26×</b>，
+但 <code>test_interference</code> 达到 <b>1.85×</b>——它那句
+"每个预设都有 group / label / summary"一行代码贡献了几十条。</p>
+
+<div class="callout c-blue">
+<p>换个角度看更实在：<b>2,645 行测试代码 : 14,406 行实现代码 ≈ 1 : 5.4</b>，
+测试占整个代码库的 16%。
+平均每条断言 0.22 秒——
+因为很多断言背后是真跑一次信道仿真，不是纯计算。</p>
+</div>
+
+<h2 id="s3">三、拦住过什么：8 个真实事故</h2>
+
+<p class="lead">下面每一条都<b>真的发生过</b>，而且都有一个共同点：
+<b>数值看起来完全正常</b>。这才是要测试的理由——能报错的 bug 不需要测试来抓。</p>
+
+<div class="grid2">
+<div class='mini'><h4>1. 门 3 用错了判决检验</h4><p><b>是什么：</b><code>PairedResult.significant</code> 只看配对 t 检验，而文档写着「两检验冲突时以 Wilcoxon 为准」。</p><p><b>有多隐蔽：</b>回归样本 n=8：<b>t 检验 p=0.044（显著）、Wilcoxon p=0.109（不显著）</b>。按承诺该拦，实际放行了。</p><p class='q'>承诺的判据和代码用的判据是两回事 —— 这比判据宽松更危险<br><span class='src'>守它的 check：test_gates 6.5</span></p></div>
+<div class='mini'><h4>2. QAM 互信息整体偏 3 dB</h4><p><b>是什么：</b><code>sigma</code> 写成 <code>1/√(2γ)</code> 而不是 <code>1/√γ</code>。</p><p><b>有多隐蔽：</b>曲线形状全对、饱和值全对，<b>只是整条平移 3 dB</b> —— 肉眼完全看不出。抓它的唯一办法是低信噪比处对香农：约束容量在 γ→0 时必须与 log2(1+γ) 重合。</p><p class='q'>「看起来完全正常」的错误只能靠解析自检抓<br><span class='src'>守它的 check：test_linkadapt 1</span></p></div>
+<div class='mini'><h4>3. 多小区配了 21 个小区，干扰根本没进 SINR</h4><p><b>是什么：</b>缺 <code>bs_panel</code> 时 ChannelHub 建不出 DFT 码本，静默走兜底：<code>sir_dB=49.9</code> 哨兵、<code>sinr_dB=snr_dB</code>。</p><p><b>有多隐蔽：</b>同配置修复前后 <b>SINR 中位数 35.7 → 18.1 dB</b>。这条路径不报错、不告警、不打日志。</p><p class='q'>静默兜底最致命 —— 数值看着完全正常，结论全错<br><span class='src'>守它的 check：validate 门 1</span></p></div>
+<div class='mini'><h4>4. CDL 角度表和 38.901 对不上</h4><p><b>是什么：</b>三张表都标着「TS 38.901 Table 7.7.1-x」，时延与功率对，<b>角度列从中段起不是</b>。</p><p><b>有多隐蔽：</b>CDL-C 有 <b>23/24 个簇</b>有出入、占总功率 93.8%，按 Annex A.1 算 ASA 偏 14.5°、ASD 偏 7.1°。</p><p class='q'>「标着标准号」不等于「是标准值」，得逐字核对<br><span class='src'>守它的 check：test_gates 1</span></p></div>
+<div class='mini'><h4>5. 测试自己把乱码吞掉了，照样报通过</h4><p><b>是什么：</b>子进程按 GBK 输出中文，父进程按 UTF-8 解码，<code>errors="replace"</code> 把它换成 U+FFFD。</p><p><b>有多隐蔽：</b><b>测试通过，等父进程把 U+FFFD 打到 GBK 控制台时才炸</b>，而且报的是父进程的错。</p><p class='q'>兜底参数会把失败伪装成成功 —— 测试本身也需要被怀疑<br><span class='src'>守它的 check：test_e2e 9</span></p></div>
+<div class='mini'><h4>6. 文档里的「19 项体检」是编的</h4><p><b>是什么：</b>这句话在 README / SKILL.md / 两份 HTML 里写了八处。</p><p><b>有多隐蔽：</b>而代码从第一版起就只有 <b>16 项</b>；<code>CAPABILITIES.html</code> 另一处写着 <b>12 项</b>。数字凭印象写的，从没对过账。</p><p class='q'>加了正则 guard 后<b>当场又抓出第二处</b><br><span class='src'>守它的 check：test_interference 10</span></p></div>
+<div class='mini'><h4>7. preset 写死 bs_panel 让天线覆盖失效</h4><p><b>是什么：</b>用户传 <code>bs_antenna="4T4R"</code>，<code>num_bs_tx_ant</code> 变成 4，而 <code>bs_panel</code> 还是 <code>[8,4,2]</code>（64 口）。</p><p><b>有多隐蔽：</b>两者矛盾，生成出来的 <code>BS_ant</code> 不是 4。<b>这是本次改动引入的，提交前被当场拦下</b>。</p><p class='q'>测试的价值不只是守旧代码，更是守住今天刚写的<br><span class='src'>守它的 check：test_mcp_server 5</span></p></div>
+<div class='mini'><h4>8. 350 km/h 的高铁场景，多普勒报 0.0 Hz</h4><p><b>是什么：</b><code>doppler_hz</code> 来自同一 UE 相邻样本之间的位移，每个 UE 只有 1 个样本时没有位移可算。</p><p><b>有多隐蔽：</b><code>num_samples=21</code> 报 <b>0.0 Hz</b>，<code>num_samples=42</code> 报 <b>817.94 Hz</b>。而 num_samples 恰好等于 num_ues 是很自然的写法。</p><p class='q'>现在自动补够样本并写进报告 —— 补，但不静默地补<br><span class='src'>守它的 check：test_interference 8.5</span></p></div>
+</div>
+
+<div class="callout c-red">
+<p><b>注意第 5 条和第 7 条。</b>第 5 条是<b>测试自己出的错</b>——它把乱码
+吞成 U+FFFD 然后报"通过"；第 7 条是<b>今天刚写的代码</b>被当场拦下。</p>
+<p>测试不是只用来守老代码的护栏，它同时是"我这次改动有没有踩到自己"的
+即时反馈。这次改默认阵列，两分钟内就被告知"你把 4T4R 覆盖弄坏了"。</p>
+</div>
+
+<h2 id="s4">四、三类 check，价值差很远</h2>
+
+<div class="ladder">
+<div class="step">
+  <span class="tag p-ok">最硬</span>
+  <div><b>物理自检</b>——能手推证明的等式，偏差只能是机器精度。<br>
+  <span class="src">IoT 公式对定义式：偏差 1.1×10<sup>−14</sup> dB ·
+  QAM 约束容量在 γ→0 时对香农 · 38.214 表内蕴关系 SE == q_m·R/1024 逐行核 87 行 ·
+  负载 ↔ IoT 往返一致</span><br>
+  <span class="q">这类 check 一旦红，一定是代码错了，不可能是"容差没调好"。</span></div>
+</div>
+<div class="step">
+  <span class="tag p-mid">很硬</span>
+  <div><b>回归测试</b>——从真实事故里长出来的，带着当时的具体数据。<br>
+  <span class="src">门 3 那组 n=8 的样本（t p=0.044 / Wilcoxon p=0.109）·
+  探测模式在 num_ofdm_symbols=1 处的悬崖 · 4T4R 覆盖</span><br>
+  <span class="q">这类 check 的注释里都写着"别删"——删掉等于把学费白交。</span></div>
+</div>
+<div class="step">
+  <span class="tag p-info">较软</span>
+  <div><b>契约与形状检查</b>——数量最多、单条价值最低。<br>
+  <span class="src">每个预设有 group/label/summary · 引擎清单恒为三条 ·
+  返回的字典里有哪些键</span><br>
+  <span class="q">635 里被循环放大的主要是这一类。它们防的是"手滑漏填"，
+  不是"物理算错"。</span></div>
+</div>
+</div>
+
+<h2 id="s5">五、它证明不了什么</h2>
+
+<div class="callout c-amber">
+<p><b>测试证明的是「自洽」和「没漂移」，不是「物理对」。</b>
+两者差得很远。</p>
+</div>
+
+<ul>
+<li><b>BLER 是模型，不是实测。</b> 分析模型没有 3GPP 参考曲线兜底；
+用户提供的公司曲线虽然贴近真实接收机，但也不是标准表、没被独立核对过。
+测试只能查它单调、覆盖全 MCS、哈希没变——<b>查不了它准不准</b>。</li>
+<li><b>阵元方向图是 3GPP 式参数化模型</b>（<code>element_pattern_is_measured: false</code>），
+不是实测 Jones 方向图。测试保证这个标志不被误报成实测，仅此而已。</li>
+<li><b>没有 CI。</b> ChannelHub 是私有依赖，云端拿不到，所以这 635 条
+<b>只在这台机器上跑过</b>。"在我这儿是绿的"这句话的全部含金量就到这里。</li>
+<li><b>覆盖是偏的。</b> 射线追踪只有 8 条（因为慢且依赖大），
+L2 调度、MU-MIMO 配对一条都没有——<b>因为那些功能还不存在</b>。
+测试数只反映已有功能的密度，不反映功能的完整度。</li>
+<li><b>数字会通胀。</b> 想让它变成 800 很容易，多写两个 <code>for</code> 就行。
+所以本页开头那句要再说一遍：<b>看哪几条，别看几条。</b></li>
+</ul>
+
+<h2 id="s6">六、日常怎么用</h2>
+
+<p>142 秒能全跑完，所以规矩很简单：<b>改完就跑，别攒着</b>。
+按改动的文件挑子集：</p>
+
+<div class="tbl-wrap"><table>
+<tr><th>改了什么</th><th>至少要跑</th></tr>
+<tr><td><code>measure/generate/plan/decisions/scenes.py</code></td>
+    <td><code>test_e2e</code> + <code>test_mcp_server</code> + <code>test_raytracing</code></td></tr>
+<tr><td><code>linklevel/validate/calibration/gates/spec38901.py</code></td>
+    <td><code>test_linklevel</code> + <code>test_gates</code></td></tr>
+<tr><td><code>results/analysis/loader.py</code></td><td><code>test_results</code></td></tr>
+<tr><td><code>linkadapt/bler_curves.py</code></td><td><code>test_linkadapt</code></td></tr>
+<tr><td><code>interference/scenario/hardware.py</code>、<code>presets.yaml</code></td>
+    <td><code>test_interference</code></td></tr>
+<tr><td>拿不准</td><td>全跑，142 秒而已</td></tr>
+</table></div>
+
+<p>发布前还会额外确认三件事，它们不在 635 里：
+<b>默认 GBK 控制台跑一遍 exit=0</b>（Windows 中文控制台会因为一个 U+2212 崩掉）、
+<b><code>claude mcp list</code> 显示 Connected</b>、
+<b>skill 三份副本 SHA-256 一致</b>。</p>
+
+<footer>
+superwireless · 测试体系说明 · 2026-07-31<br>
+本页数字由 <code>audit_tests.py</code> 真跑一遍八个测试文件量出，非手写。
+</footer>
+
+</div>
+</body>
+</html>

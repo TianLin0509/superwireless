@@ -29,6 +29,12 @@ superwireless-mcp = "superwireless.server:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# 内联 KaTeX 资产（CSS 含 20 个 base64 字体 + JS，合计约 628 KB）。
+# **不带上它说明书里的公式会退回 MathML**——不报错、只是没那么好看，
+# 所以打包漏了很难发现。scripts/vendor_katex.py 负责生成，不手改。
+[tool.setuptools.package-data]
+superwireless = ["assets/*.css", "assets/*.js", "assets/*.json"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

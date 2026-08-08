@@ -493,6 +493,15 @@ def generate(
     cfg["num_samples"] = int(num_samples)
     panel, panel_derived = _ensure_bs_panel(cfg)
 
+    # 真实阵列模型：64T 面板自动切到 1 驱 3 / 192 阵子 / 垂直 0.67λ。
+    # 不切的话走 ChannelHub 默认的 legacy_64（64 个独立阵元、一律 0.5λ），
+    # 那不是本地硬件——实测两者的 h_true 相对差 4.03，完全是另一个信道。
+    from . import hardware as hw  # noqa: PLC0415
+
+    hw.apply_array_defaults(cfg)
+    array_applied = hw.strip_markers(cfg)
+    array_block = hw.array_summary(cfg, array_applied)
+
     if collect_ssb is not None:
         meas = dict(cfg.get("measurements") or {})
         meas["ssb_rsrp"] = bool(collect_ssb)
@@ -654,6 +663,7 @@ def generate(
         "topology_note": topology_note,
         "bs_panel": list(panel),
         "bs_panel_derived": bool(panel_derived),
+        "antenna_model": array_block,
         # 并行会换掉随机流的分块方式，逐样本结果与串行不同（统计等价、各自可复现）。
         # 记进摘要，免得"换了 workers 结果对不上"变成隐形陷阱。
         "parallel": {
@@ -710,6 +720,27 @@ def generate(
         los = los[np.isfinite(los)]
         if los.size:
             summary["los_ratio"] = round(float(los.mean()), 3)
+
+    # 仿真说明书：配置敲定之后把"这次到底在仿什么"画出来。
+    # 用真实撒点画拓扑图，所以放在生成之后而不是之前。
+    # **失败不影响数据集**——说明书是解释性产物，不是数据的一部分。
+    try:
+        from . import spec as _spec  # noqa: PLC0415
+
+        _pos = payload.get("ue_position")
+        _ue_xy = (
+            [(float(r[0]), float(r[1])) for r in _pos[:400] if np.isfinite(r[0])]
+            if _pos is not None and _pos.ndim == 2 and _pos.shape[1] >= 2 else None
+        )
+        summary["spec_sheet"] = _spec.write_spec(
+            dict(cfg, source=source_name),
+            num_samples=int(accepted),
+            dataset_id=dataset_id,
+            title=f"仿真说明书 · {dataset_id}",
+            ue_xy=_ue_xy,
+        )
+    except Exception as exc:  # noqa: BLE001
+        summary["spec_sheet"] = {"error": f"{type(exc).__name__}: {exc}"}
 
     (out_dir / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2, default=str), encoding="utf-8"

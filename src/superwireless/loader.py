@@ -212,7 +212,7 @@ class Dataset:
         return np.asarray(
             [
                 measure.channel_capacity_bps_hz(h, float(s))
-                for h, s in zip(self.h_true, self.sinr_dB)
+                for h, s in zip(self.h_true, self.sinr_dB, strict=True)
             ]
         )
 
@@ -301,6 +301,88 @@ class Dataset:
         kw.setdefault("layers", r.rank)
         # 逐 RB 逐层的后处理 SINR 拉平——链路到系统映射就是要吃掉这个频选起伏
         return la.link_adaptation(np.asarray(r.sinr_per_rb_db).ravel(), **kw)
+
+    def tdd_mcs(
+        self,
+        index: int = 0,
+        *,
+        cqi_index: int,
+        olla_mcs_offset: float = 0.0,
+        target_bler: float = 0.1,
+        max_rank: int = 4,
+        use_estimated_csi: bool = True,
+        feedback_ack: bool | None = None,
+        olla_ack_step_mcs: float = 0.1,
+        snr_db: float | None = None,
+        n_h: int | None = None,
+        n_v: int | None = None,
+    ) -> dict[str, Any]:
+        """TDD CQI → PMI/SVD BF Gain → MCS → OLLA decision for one sample.
+
+        PMI and SVD use the same channel, CSI, scheduled rank, power allocation,
+        noise/interference and classic MMSE receiver. The only changed quantity is the
+        precoding weight. SINR aggregation is an arithmetic mean in the dB domain over
+        every RB and stream, matching the system-level convention requested for TDD.
+        """
+        from . import linkadapt as la
+        from . import linklevel as ll
+
+        idx = int(index)
+        if idx < 0 or idx >= self.n:
+            raise IndexError(f"sample index must be 0..{self.n - 1}, got {index}")
+        if int(cqi_index) == 0:
+            out = la.tdd_mcs_adaptation(
+                cqi_index, np.zeros((1, 1)), np.zeros((1, 1)),
+                olla_mcs_offset=olla_mcs_offset, target_bler=target_bler,
+                feedback_ack=feedback_ack, olla_ack_step_mcs=olla_ack_step_mcs,
+            )
+            out.update({"dataset_id": self.dataset_id, "sample_index": idx})
+            return out
+
+        snr = float(np.asarray(self.sinr_dB)[idx]) if snr_db is None else float(snr_db)
+        h_eval = self.h_true[idx]
+        h_precoding = self.h_est[idx] if use_estimated_csi else h_eval
+        common: dict[str, Any] = {
+            "snr_db": snr,
+            "receiver": "mmse",
+            "h_for_precoding": h_precoding,
+            "n_h": n_h,
+            "n_v": n_v,
+        }
+        if self.h_interferers is not None:
+            common["h_interferers"] = self.h_interferers[idx]
+
+        # CQI was measured with the Type-I/PMI weight, so its RI defines the scheduled
+        # rank. SVD is then forced to exactly that rank for an apples-to-apples delta.
+        pmi = ll.link_performance(
+            h_eval, method="type1", max_rank=max_rank, rank_threshold=0.1, **common
+        )
+        svd = ll.link_performance(
+            h_eval, method="svd", max_rank=pmi.rank, rank_threshold=0.0, **common
+        )
+        if svd.rank != pmi.rank:
+            raise ValueError(
+                "SVD and PMI must use the same scheduled rank; "
+                f"got SVD rank {svd.rank}, PMI rank {pmi.rank}"
+            )
+
+        out = la.tdd_mcs_adaptation(
+            cqi_index,
+            svd.sinr_per_rb_db,
+            pmi.sinr_per_rb_db,
+            olla_mcs_offset=olla_mcs_offset,
+            target_bler=target_bler,
+            feedback_ack=feedback_ack,
+            olla_ack_step_mcs=olla_ack_step_mcs,
+        )
+        out.update({
+            "dataset_id": self.dataset_id,
+            "sample_index": idx,
+            "physical_sinr_db": snr,
+            "csi_for_precoding": "estimated" if use_estimated_csi else "ideal",
+            "pmi_indices": pmi.precoder_indices,
+        })
+        return out
 
     def throughput(self, *, max_samples: int = 500, **kw: Any) -> Any:
         """整批样本的吞吐分布，含 3GPP 口径的 5% 边缘用户指标。"""

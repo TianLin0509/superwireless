@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>superwireless 通宵成果与待审</title>
+<style>
+  :root{
+    --bg:#fafafa; --card:#fff; --ink:#1d1d1f; --ink-soft:#6e6e73;
+    --border:#d2d2d7; --accent:#0071e3;
+    --success:#34c759; --warning:#ff9f0a; --danger:#ff3b30;
+    --code-bg:#1d1d1f; --code-ink:#f5f5f7;
+    --tint-blue:#eef5fd; --tint-blue-ink:#0055b3;
+    --tint-green:#eef9f0; --tint-green-ink:#1a7a34;
+    --tint-amber:#fdf5e8; --tint-amber-ink:#8a5a00;
+    --tint-red:#fdeeed; --tint-red-ink:#a32620;
+    --tint-grey:#f2f2f4; --tint-grey-ink:#4a4a4e;
+    --tint-purple:#f3f0fb; --tint-purple-ink:#5a3ec8;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#1d1d1f; --card:#2c2c2e; --ink:#f5f5f7; --ink-soft:#aeaeb2;
+      --border:#38383a; --accent:#0a84ff;
+      --success:#30d158; --warning:#ffd60a; --danger:#ff453a;
+      --tint-blue:#12263c; --tint-blue-ink:#8ec2ff;
+      --tint-green:#14301c; --tint-green-ink:#7ee096;
+      --tint-amber:#33280c; --tint-amber-ink:#ffd77a;
+      --tint-red:#3a1a18; --tint-red-ink:#ff9a92;
+      --tint-grey:#333336; --tint-grey-ink:#c8c8cc;
+      --tint-purple:#241d3d; --tint-purple-ink:#b9a6f5;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; padding:40px 20px; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    font-size:15px; line-height:1.75; overflow-x:hidden;}
+  .wrap{max-width:1140px; margin:0 auto;}
+  h1{font-size:34px; font-weight:700; letter-spacing:-0.03em; margin:0 0 10px;}
+  .tagline{font-size:17px; color:var(--ink-soft); margin:0 0 8px;}
+  .meta{color:var(--ink-soft); font-size:13px; margin:0 0 28px; font-family:"SF Mono",Consolas,monospace;}
+  h2{font-size:24px; font-weight:700; letter-spacing:-0.02em; margin:54px 0 8px; padding-top:22px; border-top:1px solid var(--border);}
+  h3{font-size:18px; font-weight:600; margin:32px 0 8px;}
+  h4{font-size:15px; font-weight:600; margin:22px 0 6px;}
+  p{margin:10px 0;}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:24px; margin:20px 0;}
+  .lead{font-size:16px; color:var(--ink-soft); margin:0 0 18px;}
+
+  .toc{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px 24px; margin:24px 0 34px;}
+  .toc ol{margin:6px 0; padding-left:22px; columns:2; column-gap:32px;}
+  .toc li{margin:4px 0; break-inside:avoid;}
+  .toc a{color:var(--accent); text-decoration:none;}
+  .toc a:hover{text-decoration:underline;}
+
+  .callout{border-radius:10px; padding:16px 20px; margin:18px 0; border-left:3px solid;}
+  .callout p:first-child{margin-top:0;} .callout p:last-child{margin-bottom:0;}
+  .c-blue{background:var(--tint-blue); color:var(--tint-blue-ink); border-left-color:var(--accent);}
+  .c-green{background:var(--tint-green); color:var(--tint-green-ink); border-left-color:var(--success);}
+  .c-amber{background:var(--tint-amber); color:var(--tint-amber-ink); border-left-color:var(--warning);}
+  .c-red{background:var(--tint-red); color:var(--tint-red-ink); border-left-color:var(--danger);}
+  .c-purple{background:var(--tint-purple); color:var(--tint-purple-ink); border-left-color:#5a3ec8;}
+
+  .plain{background:var(--tint-grey); color:var(--tint-grey-ink); border-radius:10px; padding:14px 18px; margin:14px 0; font-size:14.5px;}
+  .plain::before{content:"白话讲　"; font-weight:600;}
+  .plain p{margin:8px 0;} .plain p:first-of-type{display:inline;}
+
+  .tbl-wrap{overflow-x:auto; margin:16px 0; border:1px solid var(--border); border-radius:10px;}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; background:var(--card);}
+  th,td{padding:9px 13px; text-align:left; border-bottom:1px solid var(--border); vertical-align:top;}
+  th{background:var(--tint-grey); color:var(--tint-grey-ink); font-weight:600; white-space:nowrap; font-size:13px;}
+  tr:last-child td{border-bottom:none;}
+  code{font-family:"SF Mono",Consolas,Monaco,monospace; background:var(--tint-grey); color:var(--tint-grey-ink);
+       padding:1px 5px; border-radius:4px; font-size:12.5px;}
+  td code,th code{font-size:12px;}
+  .nowrap{white-space:nowrap;}
+  pre{background:var(--code-bg); color:var(--code-ink); padding:16px 20px; border-radius:10px; overflow-x:auto;
+      font-family:"SF Mono",Consolas,Monaco,monospace; font-size:12.5px; line-height:1.62; margin:14px 0;}
+  pre code{background:none; color:inherit; padding:0; font-size:inherit;}
+  .cm{color:#8e8e93;}
+
+  ul,ol{margin:10px 0; padding-left:24px;} li{margin:5px 0;}
+
+  .pill{display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; white-space:nowrap;}
+  .p-ok{background:var(--tint-green); color:var(--tint-green-ink);}
+  .p-no{background:var(--tint-red); color:var(--tint-red-ink);}
+  .p-mid{background:var(--tint-amber); color:var(--tint-amber-ink);}
+  .p-info{background:var(--tint-blue); color:var(--tint-blue-ink);}
+  .p-out{background:var(--tint-grey); color:var(--tint-grey-ink);}
+  .p-purple{background:var(--tint-purple); color:var(--tint-purple-ink);}
+
+  .grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; margin:18px 0;}
+  .mini{background:var(--card); border:1px solid var(--border); border-radius:10px; padding:18px;}
+  .mini h4{margin:0 0 8px; font-size:15px;}
+  .mini p{margin:6px 0; font-size:14px; color:var(--ink-soft);}
+
+  .src{font-family:"SF Mono",Consolas,monospace; font-size:12px; color:var(--ink-soft);}
+  footer{margin-top:64px; padding-top:24px; border-top:1px solid var(--border); color:var(--ink-soft); font-size:13px;}
+
+  /* --- 本页专用 --- */
+  .rank{display:grid; grid-template-columns:44px 1fr; gap:0 16px; margin:16px 0;}
+  .rank .no{font:700 26px "SF Mono",Consolas,monospace; color:var(--accent); line-height:1.3;}
+  .rank .bd{border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:16px;}
+  .rank .bd:last-child{border-bottom:none;}
+  .rank h4{margin:0 0 4px; font-size:16.5px;}
+  .rank .tags{display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 8px;}
+  .rank p{margin:6px 0; font-size:14.5px;}
+
+  .stack{margin:20px 0; border:1px solid var(--border); border-radius:12px; overflow:hidden;}
+  .layer{display:grid; grid-template-columns:170px 1fr 96px; gap:14px; align-items:start;
+         padding:11px 16px; border-bottom:1px solid var(--border); font-size:13.5px;}
+  .layer:last-child{border-bottom:none;}
+  .layer .nm{font-weight:600;}
+  .layer .ds{color:var(--ink-soft);}
+  .layer.have{background:var(--tint-green);} .layer.have .nm{color:var(--tint-green-ink);}
+  .layer.part{background:var(--tint-amber);} .layer.part .nm{color:var(--tint-amber-ink);}
+  .layer.gap{background:var(--tint-red);}   .layer.gap .nm{color:var(--tint-red-ink);}
+  .layer.out{background:var(--tint-grey);}  .layer.out .nm{color:var(--tint-grey-ink);}
+  .layer .st{text-align:right;}
+  @media (max-width:640px){ .layer{grid-template-columns:1fr; gap:2px;} .layer .st{text-align:left;} }
+
+  .legend{display:flex; gap:14px; flex-wrap:wrap; margin:10px 0 0; font-size:13px; color:var(--ink-soft);}
+</style>
+<style>
+  .step{display:grid; grid-template-columns:46px 1fr; gap:0 16px; margin:18px 0;}
+  .step .no{font:700 22px "SF Mono",Consolas,monospace; color:var(--accent); line-height:1.5;}
+  .step .bd{border-left:2px solid var(--border); padding:0 0 20px 18px; margin-left:-9px;}
+  .step h3{margin:0 0 6px; font-size:17px;}
+  .fml{background:var(--tint-grey); color:var(--tint-grey-ink); border-radius:8px;
+       padding:12px 16px; margin:10px 0; font-family:"SF Mono",Consolas,monospace;
+       font-size:13px; overflow-x:auto; white-space:pre;}
+  .ask{background:var(--tint-purple); color:var(--tint-purple-ink); border-radius:10px;
+       padding:14px 18px; margin:14px 0; border-left:3px solid #5a3ec8;}
+  .ask p:first-of-type{display:inline;}
+  .ask p{margin:8px 0;}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+<h1>通宵成果与待审</h1>
+<p class="tagline">7 个 bug · 5 个新需求提案 · 8 个决策点等你拍板</p>
+<p class="meta">2026-08-03 凌晨 · 十个套件 964 项全通过 · 所有数字来自实跑</p>
+
+<div class="callout c-red">
+<p><b>今晚最重要的一条发现，先说。</b> 实测 <b>CSI 老化会把 MU-MIMO 增益吃干净</b>：
+30 km/h 下 CSI 滞后 <b>10 ms</b>，MU 和谱效就从 11.98 掉到 <b>6.03（−50%）</b>；
+60 km/h 掉到 4.52（−62%）。<b>而 10 ms 正好是常见的 SRS 周期。</b></p>
+<div class="callout c-amber" style="margin-top:12px">
+<p><b>这张表的时间轴我第一版标错了 10 倍，已更正。</b>
+ChannelHub 的多时隙输出不是连续 TTI，而是<b>连续的 SRS/CSI-RS 机会</b>——
+每个快照推进 <code>max(srs_per, csirs_per) × slot_duration</code>，默认
+10 × 0.5 ms = <b>5 ms</b>，我当成了一个 TTI（0.5 ms）。</p>
+<p>用 Jakes 模型验出来的：ρ(τ)=|J₀(2π·f_d·τ)| 的首零点在 3 km/h 时是 53 ms，
+实测极小值落在第 10 个快照 → 每快照 5.3 ms，对上。
+<b>更正后结论反而更可信</b>——原来的「1 ms 就掉一半」敏感得不合常理，
+而 10 ms 正是真实 SRS 周期的量级。</p>
+</div>
+<p><b>平台现在完全看不到这件事</b>——因为 CSI 反馈时延根本没建模，
+所有 MU 结论都默认基站拿到的是零时延的完美 CSI。
+这是提案 1，也是我认为今晚最该做的一件事。</p>
+</div>
+
+<div class="toc">
+<strong>目录</strong>
+<ol>
+<li><a href="#s1">修掉的 7 个 bug</a></li>
+<li><a href="#s2">5 个新需求提案</a></li>
+<li><a href="#s3">要你拍板的 8 个决策点</a></li>
+<li><a href="#s4">今晚做完的功能</a></li>
+</ol>
+</div>
+
+
+<h2 id="s1">一、修掉的 7 个 bug</h2>
+
+<p class="lead">流程图写完之后逐条对照实现抓的。<b>其中 3 个会让整条仿真崩掉。</b></p>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th style="min-width:150px">Bug</th><th>症状</th><th>为什么危险</th></tr></thead>
+<tbody>
+<tr><td><b>1. nan SINR 让整条系统级仿真崩掉</b><br><span class="pill p-no">严重</span></td>
+<td>抛 <code>sinr_db must contain only finite values</code></td>
+<td>ChannelHub 的 <code>sinr_dB</code> 在被拒样本上就是 nan、全零信道算出来也是 nan。
+<b>一个用户的一个快照就能挂掉整次仿真</b>，报的错还完全看不出是谁。</td></tr>
+
+<tr><td><b>2. nan 几何 SINR 进建表直接崩</b><br><span class="pill p-no">严重</span></td>
+<td><code>cannot convert float NaN to integer</code></td>
+<td>同上的下游。现在判为覆盖外，正常用户不受影响。</td></tr>
+
+<tr><td><b>3. IoT 聚合口径混用报出 inf</b><br><span class="pill p-no">严重</span></td>
+<td>IoT 中位 = inf，或虚低到 0.7~3 dB</td>
+<td>先对 SINR 和 SIR 各自取平均、再拿两个平均值算 IoT。更根本的是
+<code>num_slots_per_sample&gt;1</code> 时 <code>sinr_dB</code> 是各 slot 的 dB 均值、
+<code>sir_dB</code> 只取最后一个 slot，出现 <b>SIR &lt; SINR 这种物理上不可能的值</b>。
+修好后密集城区 IoT 中位 <b>32.2 dB</b>，正对应现网 &gt;20 dB。</td></tr>
+
+<tr><td><b>4. bimodal 的 RBG 分布不跟配置</b><br><span class="pill p-mid">数据错</span></td>
+<td><code>num_rbg=8</code> 时平均抽到 9.03 个 RBG</td>
+<td><code>draw_rbg</code> 签名给了默认 17、调用处又不传。"满带宽占比"从 0.30 变成 0.586。
+修后 4.50 / 0.368。</td></tr>
+
+<tr><td><b>5. MU 下 PF 度量与实发口径不一致</b><br><span class="pill p-mid">判据错</span></td>
+<td>公平性判据整个偏掉</td>
+<td>MU 实发被限到 rank≤2，PF 却记 <code>best_se</code>（可能是 rank4）的谱效——
+调度器以为给足了。</td></tr>
+
+<tr><td><b>6. 各用户信道形状不一致时静默出错</b><br><span class="pill p-mid">静默</span></td>
+<td>要么抛看不懂的 broadcast 错，要么给出错误结果</td>
+<td>形状恰好能广播时<b>不报错也不对</b>。现在当场报错并列出实际形状。</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="callout c-green">
+<p><b>第 7 个 bug：我把快照间隔当成了一个 TTI，差 10 倍。</b>（已定位并修复）</p>
+<p>发现过程：3 km/h 的相关系数「7 ms 内掉到 0.24」看着不合理。
+先怀疑是每 slot 重抽小尺度衰落——查下来<b>不是</b>：
+相关随滞后单调下降（滞后 1 为 0.987、滞后≥8 为 0.374），
+而且 0.315→0.342→0.390→0.432 的回升正是 <b>J₀ 的负瓣</b>，
+形状完全是 Jakes。问题只在时间尺度。</p>
+<p>真因在 <code>internal_sim.py:3252</code>：多时隙输出的每个快照推进
+<code>speed × max(srs_per, csirs_per) × slot_duration</code>，
+默认 10 × 0.5 ms = <b>5 ms</b>——它们是连续的 SRS/CSI-RS 机会，不是连续 TTI。
+<b>ChannelHub 没错，是我读错了。</b></p>
+<p>已加 <code>system.snapshot_interval_ms()</code> 由配置算出来，
+默认值从拍脑袋的 10.0 改成正确的 5.0。
+<b>所有时间相关的结论（CSI 老化、多普勒、移动性）都受这一条影响</b>，
+上面那张表已按更正后的时间轴重标。</p>
+</div>
+
+
+<h2 id="s2">二、5 个新需求提案</h2>
+
+<p class="lead">对照 MATLAB 5G Toolbox 与 5G-LENA 的能力清单，
+挑的是<b>真正影响用户体验评估</b>的，不是凑数。每条都带实测证据或明确的缺失后果。</p>
+
+<div class="card">
+<div class="rank">
+
+<div class="no">1</div>
+<div class="bd">
+<h4>CSI 反馈时延与老化</h4>
+<div class="tags">
+  <span class="pill p-no">最高优先级</span>
+  <span class="pill p-info">约 300~500 行</span>
+  <span class="pill p-ok">数据已具备</span>
+</div>
+<p><b>实测证据（今晚跑的）：</b></p>
+<div class="tbl-wrap"><table>
+<thead><tr><th>速度</th><th>CSI 零时延</th><th>滞后 10 ms</th><th>滞后 20 ms</th><th>滞后 40 ms</th></tr></thead>
+<tbody>
+<tr><td>3 km/h</td><td>11.96</td><td>11.04（−8%）</td><td>9.01（−25%）</td><td>5.64（−53%）</td></tr>
+<tr><td>30 km/h</td><td>11.98</td><td><b>6.03（−50%）</b></td><td>4.54（−62%）</td><td>4.22（−65%）</td></tr>
+<tr><td>60 km/h</td><td>12.00</td><td><b>4.52（−62%）</b></td><td>4.23（−65%）</td><td>4.52（−62%）</td></tr>
+<tr><td>120 km/h</td><td>12.06</td><td>4.27（−65%）</td><td>4.46（−63%）</td><td>4.39（−64%）</td></tr>
+</tbody></table></div>
+<p><b>常见的 SRS 周期就是 10~20 ms</b>，再加处理与调度时延。
+所以现网 MU 增益上不去，CSI 老化极可能是主因之一——
+而平台现在<b>完全看不到这件事</b>，因为它默认基站拿到的是零时延完美 CSI。</p>
+<p><b>要做什么：</b>把 SRS 周期、处理时延、调度时延建成一条可配的时延链，
+预编码用滞后 N 个 slot 的 CSI，评估用当前 slot 的信道。
+数据已经有了（多时隙时序信道），主要是把"用哪个时刻的 CSI"这件事参数化。</p>
+</div>
+
+<div class="no">2</div>
+<div class="bd">
+<h4>子带 CSI 与频选调度</h4>
+<div class="tags">
+  <span class="pill p-mid">工作量中</span>
+  <span class="pill p-info">约 400~600 行</span>
+  <span class="pill p-info">直接提升边缘用户</span>
+</div>
+<p>现在整个带宽<b>共用一个 MCS、一次调度决策</b>（宽带 CSI）。
+真实系统里 CQI 是分子带上报的，调度器可以把每个 RBG 分给该子带上信道最好的用户——
+<b>这是现网提升边缘用户速率的主要手段之一</b>。</p>
+<p>我们已经有逐 RB 的 SINR，缺的是：子带 CQI 上报的量化与聚合、
+调度器从"选一个用户占满带宽"改成"逐 RBG 选用户"。</p>
+<p><b>做了能回答：</b>频选调度相比宽带调度能给 5% 边缘用户带来多少增益？
+子带粒度取多大合适（现在 RBG=16 RB）？</p>
+</div>
+
+<div class="no">3</div>
+<div class="bd">
+<h4>业务分化的时延 KPI（VoIP / XR）</h4>
+<div class="tags">
+  <span class="pill p-mid">工作量中</span>
+  <span class="pill p-info">约 300~400 行</span>
+  <span class="pill p-info">体验的另一半</span>
+</div>
+<p>你说体验速率是最关心的 KPI——对 FTP 类业务确实是。但<b>小包业务的体验根本不由速率决定</b>：
+今晚实测证实了这一点，小包一个 TTI 就发完，
+3GPP 掐尾口径下<b>压根测不出速率</b>（这不是 bug，是这个 KPI 的固有盲区）。</p>
+<p>它们的体验由<b>时延与抖动</b>决定。而现网话务里小包占 30%。</p>
+<p><b>要做什么：</b>加 VoIP（周期小包 + 静默期）与 XR（周期帧 + 突发）业务模型，
+KPI 加包时延分布、时延抖动、丢包率、满足率（比如"95% 的包 &lt; 20 ms"）。
+调度器侧加时延敏感的准则（比如 M-LWDF）。</p>
+</div>
+
+<div class="no">4</div>
+<div class="bd">
+<h4>移动性轨迹与切换</h4>
+<div class="tags">
+  <span class="pill p-mid">工作量中</span>
+  <span class="pill p-info">约 400~600 行</span>
+  <span class="pill p-mid">依赖 bug#7 先查清</span>
+</div>
+<p>现在有速度参数，但<b>没有轨迹、没有切换</b>。而体验速率的一大杀手正是切换：
+切换前信号劣化、切换中断、切换后重建，这段时间用户的感知速率是塌的。</p>
+<p><b>要做什么：</b>随机路点 / 直线 / 绕圈三种轨迹，A3 事件触发的切换判决，
+切换时延与中断建模，KPI 加切换次数、乒乓率、切换中断时长占比。</p>
+<p class="src">前提：先查清上面那条"3 km/h 相关系数掉得太快"的问题——
+轨迹建模建立在时序信道可信的基础上。</p>
+</div>
+
+<div class="no">5</div>
+<div class="bd">
+<h4>CSI Type II 码本</h4>
+<div class="tags">
+  <span class="pill p-mid">工作量中</span>
+  <span class="pill p-info">约 400~600 行</span>
+  <span class="pill p-info">MU 的前提</span>
+</div>
+<p>现在只有 Type I（已做秩自适应）。<b>Type II 是 MU-MIMO 的前提条件</b>——
+38.214 里 Type II 就是为 MU 设计的，它给出的是幅度+相位加权的线性组合，
+精度远高于 Type I 的单波束选择。</p>
+<p><b>证据：</b>今晚实测 CSI NMSE 从 −31 dB 掉到 −8.6 dB，MU 和谱效直接掉一半
+（46.28 → 23.92）。Type I 的量化误差在 MU 场景下会造成同量级损失。</p>
+<p>MATLAB 5G Toolbox 明确把 Type II 标为 MU-MIMO 用、Type I 标为 SU-MIMO 用，
+这个分工是标准里就定好的。</p>
+</div>
+
+</div>
+</div>
+
+<div class="callout c-blue">
+<p><b>为什么是这 5 个。</b> 1 和 5 直接决定 MU 结论可不可信（你最关心的方向）；
+2 直接提升边缘用户（现网痛点）；3 补上体验 KPI 缺失的那一半（小包业务）；
+4 覆盖体验速率最大的杀手（切换）。</p>
+<p><b>没选的：</b>RLC/PDCP 分段重组、协议栈信令、ISAC 感知、Sidelink——
+它们要么在定位之外，要么对"下行体验速率"这个核心 KPI 没有直接贡献。</p>
+</div>
+
+
+<h2 id="s3">三、要你拍板的 8 个决策点</h2>
+
+<p class="lead">我都按自己的推荐先做了，这里汇总供你统一 check。</p>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th style="min-width:130px">决策点</th><th>我选了什么</th><th>理由 / 影响</th></tr></thead>
+<tbody>
+<tr><td><b>公式渲染</b></td><td>MathML，不用 KaTeX</td>
+<td>KaTeX 要么引 CDN（离线打不开）、要么内联 ~1 MB。MathML 浏览器原生支持，
+零依赖零网络，排版质量相当。<b>如果你要 KaTeX 的某个特定效果，告诉我。</b></td></tr>
+
+<tr><td><b>撒点</b></td><td>调 ChannelHub 的 <code>_place_ues</code></td>
+<td>与真跑<b>逐位相同</b>（误差 0.000000 m），所以叫"用户"不叫"示意"。
+我原来手搓的撒点把 <code>ue_distribution</code> 整个忽略了。</td></tr>
+
+<tr><td><b>OLLA 步长</b></td><td>+0.01 / −0.1（你给的现网基线）</td>
+<td>稳态 BLER 9.1%。<b>但收敛很慢</b>——MCS 是整数档，0.01 dB 常压不动一档，
+8 秒仿真里 BLER 还停在 0.16~0.22。未收敛时会主动告警。
+要快收敛可临时按比例放大步长（稳态 BLER 不变）。</td></tr>
+
+<tr><td><b>发送侧 SINR</b></td><td>CQI 长期统计口径</td>
+<td>做成"完全无干扰"是极端假设，实测差 28 dB、OLLA 追不上、BLER 飙到 0.85。
+现在取接收 SINR 的长期均值，两者差约 1 dB。</td></tr>
+
+<tr><td><b>仿真粒度</b></td><td>RBG（17 个），取代表 RB</td>
+<td>rank 与 MCS <b>逐位相同</b>、谱效差 0.1%、建表快一倍。
+取代表点而非平均——平均会抹平频选衰落、高估 rank。
+<b>但提案 2（频选调度）需要退回 RB 粒度</b>，届时把 <code>rb_per_rbg=1</code> 设回去。</td></tr>
+
+<tr><td><b>bimodal PRB 利用率</b></td><td>折合 37.1%，你说的是 30%</td>
+<td>差在中间段——2~16 均匀分布的均值 0.53 偏高。
+<b>这个参数我没替你调</b>，它直接决定负载。要对齐就调 <code>p_idle_tti</code>
+或把中间段改成偏小的分布。</td></tr>
+
+<tr><td><b>邻区负载默认值</b></td><td>0.3</td>
+<td>但实测<b>现网 IoT &gt;20 dB 对应的是接近满负载</b>：
+100% 负载下 IoT 32.9 dB，10% 负载下只有 22.9 dB。
+<b>如果要复现现网的 IoT，这个值该调高。</b></td></tr>
+
+<tr><td><b>MU rank</b></td><td>固定 2（你定的）</td>
+<td>SU 侧是 1~4 自适应的。信道差的用户在 MU 下被强制开 2 流，可能不如 rank1——
+要不要让 MU 也在 1~2 之间选？</td></tr>
+</tbody>
+</table>
+</div>
+
+
+<h2 id="s4">四、今晚做完的功能</h2>
+
+<div class="grid2">
+<div class="mini">
+<h4>算法页签重做</h4>
+<p><b>7 个算法族、21 个可选实现、7 张流程图、39 个流程步骤。</b>
+每族列出全部实现并标出「当前采用」，公式用 MathML 渲染。
+页面顶部写明只读、改配置去「改配置」页签。</p>
+</div>
+<div class="mini">
+<h4>公式渲染（MathML）</h4>
+<p>新增 <code>mathml.py</code>：LaTeX 子集 → MathML。
+踩了两个只有在浏览器里才看得见的坑：<code>"\frac"</code> 里 <code>\f</code> 是换页符
+导致所有分式失效；不包 <code>&lt;mrow&gt;</code> 会被拆成三行。</p>
+</div>
+<div class="mini">
+<h4>拓扑图</h4>
+<p>C0~C20 小区编号、Site0~Site6 站点编号、真实用户撒点。
+又踩了一次「SVG 的 style 是文档级的」——<code>.cl</code> 撞了调参面板的
+<code>&lt;span class="cl"&gt;</code>，小区编号糊成蓝块。</p>
+</div>
+<div class="mini">
+<h4>算法流程图</h4>
+<p>SVG 竖排流程，带分支与回环。<b>写它不只是为了给用户看</b>——
+把实现摊成步骤后，「代码是不是真这么做的」变成可以逐条对照的问题，
+今晚 6 个 bug 里有 3 个是这样抓到的。</p>
+</div>
+</div>
+
+
+<footer>
+superwireless · 通宵成果与待审 · 2026-08-03 凌晨<br>
+所有数字来自实跑。代码：mathml.py / algo_defs.py / system.py / mumimo.py。
+测试：十个套件 964 项全通过。
+</footer>
+
+</div>
+</body>
+</html>
